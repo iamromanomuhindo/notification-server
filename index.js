@@ -8,8 +8,9 @@ const app = express();
 
 // CORS configuration
 app.use(cors({
-  origin: ['http://localhost:5500', 'http://127.0.0.1:5500', 'https://manomedia.onrender.com'],
-  methods: ['GET', 'POST'],
+  origin: ['http://localhost:5500', 'http://127.0.0.1:5500', 'https://manomedia.onrender.com', 'https://manomedia.shop'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
