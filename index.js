@@ -90,27 +90,38 @@ app.post('/send-notifications', async (req, res) => {
         notification: {
           title: campaign.title,
           body: campaign.message,
+          icon: campaign.icon_url || '',
+          image: campaign.image_url || '',
+          click_action: 'FLUTTER_NOTIFICATION_CLICK'
         },
         data: {
-          click_action: campaign.click_url || '',
-          campaign_id: campaignId.toString(),
+          url: campaign.click_url || '', // Store URL in data payload
+          campaignId: campaignId.toString(),
+          click_action: 'FLUTTER_NOTIFICATION_CLICK'
         },
         android: {
           notification: {
             icon: campaign.icon_url || '',
             image: campaign.image_url || '',
-            click_action: campaign.click_url || '',
-          },
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+          }
         },
         webpush: {
           notification: {
             icon: campaign.icon_url || '',
             image: campaign.image_url || '',
+            requireInteraction: true,
+            actions: [
+              {
+                action: 'open_url',
+                title: 'Open'
+              }
+            ]
           },
-          fcm_options: {
-            link: campaign.click_url || '',
-          },
-        },
+          fcmOptions: {
+            link: campaign.click_url || '' // Set the URL to open when clicked
+          }
+        }
       };
 
       for (const subscriber of subscribers) {
@@ -152,6 +163,32 @@ app.post('/send-notifications', async (req, res) => {
   } catch (error) {
     console.error('Error in send-notifications:', error);
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// Record notification click
+app.post('/record-click', async (req, res) => {
+  try {
+    const { campaignId } = req.body;
+
+    if (!campaignId) {
+      return res.status(400).json({ error: 'Campaign ID is required' });
+    }
+
+    // Update click count in notifications table
+    const { data, error } = await supabase.rpc('increment_notification_clicks', {
+      p_campaign_id: campaignId
+    });
+
+    if (error) {
+      console.error('Error recording click:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error recording click:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
