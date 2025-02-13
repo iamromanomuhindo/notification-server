@@ -6,11 +6,11 @@ require('dotenv').config();
 
 const app = express();
 
-// Enable CORS for your frontend domain
+// CORS configuration
 app.use(cors({
-  origin: ['https://manomedia.shop', 'http://localhost:3000'],
-  methods: ['POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: ['http://localhost:5500', 'http://127.0.0.1:5500', 'https://manomedia.onrender.com'],
+  methods: ['GET', 'POST'],
+  credentials: true
 }));
 
 app.use(express.json());
