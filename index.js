@@ -16,43 +16,61 @@ app.use(cors({
 
 app.use(express.json());
 
-// Initialize Supabase client
-console.log('Attempting to initialize Supabase...');
-console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
-console.log('SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
-console.log('First 10 chars of key:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.substring(0, 10) : 'none');
+// Initialize Supabase client with retry mechanism
+function initializeSupabase(retryCount = 0) {
+  console.log('Attempting to initialize Supabase...');
+  console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+  console.log('SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
+  console.log('First 10 chars of key:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.substring(0, 10) : 'none');
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('Missing required Supabase environment variables');
-  process.exit(1);
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('Missing required Supabase environment variables');
+    process.exit(1);
+  }
+
+  const supabase = createClient(
+    process.env.SUPABASE_URL.trim(),
+    process.env.SUPABASE_SERVICE_ROLE_KEY.trim()
+  );
+
+  // Test the connection
+  return (async () => {
+    try {
+      const { data, error } = await supabase.from('notifications').select('count').limit(1);
+      if (error) {
+        console.error('Supabase connection test failed:', error);
+        if (error.message === 'Invalid API key' && retryCount < 3) {
+          console.log(`Retrying Supabase initialization (attempt ${retryCount + 1}/3)...`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+          return initializeSupabase(retryCount + 1);
+        }
+        throw error;
+      }
+      console.log('Supabase connection test successful');
+      return supabase;
+    } catch (error) {
+      console.error('Exception during Supabase initialization:', error);
+      if (retryCount < 3) {
+        console.log(`Retrying Supabase initialization (attempt ${retryCount + 1}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        return initializeSupabase(retryCount + 1);
+      }
+      throw error;
+    }
+  })();
 }
 
-const supabase = createClient(
-  process.env.SUPABASE_URL.trim(),
-  process.env.SUPABASE_SERVICE_ROLE_KEY.trim()
-);
-
-// Test Supabase connection
+// Initialize Supabase with retry
+let supabase;
 (async () => {
   try {
-    const { data, error } = await supabase.from('notifications').select('count').limit(1);
-    if (error) {
-      console.error('Failed to test Supabase connection:', error);
-      console.error('Error details:', {
-        message: error.message,
-        hint: error.hint,
-        details: error.details,
-        code: error.code
-      });
-    } else {
-      console.log('Supabase connection test successful');
-    }
+    supabase = await initializeSupabase();
+    console.log('Supabase initialized successfully');
   } catch (error) {
-    console.error('Exception during Supabase connection test:', error);
+    console.error('Failed to initialize Supabase after retries:', error);
+    process.exit(1);
   }
 })();
-
-console.log('Supabase client initialized successfully');
 
 // Initialize Firebase Admin
 console.log('Initializing Firebase with project ID:', process.env.FIREBASE_PROJECT_ID);
@@ -121,6 +139,29 @@ app.post('/send-notifications', async (req, res) => {
     console.log('Fetching campaign with ID:', campaignId);
     console.log('Using Supabase URL:', process.env.SUPABASE_URL);
     console.log('Service Role Key length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
+
+    // Test Supabase connection before making the query
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from('notifications')
+        .select('count')
+        .limit(1);
+
+      if (testError) {
+        console.error('Test query failed:', testError);
+        console.error('Test error details:', {
+          message: testError.message,
+          hint: testError.hint,
+          details: testError.details,
+          code: testError.code
+        });
+        throw new Error('Database connection test failed');
+      }
+      console.log('Test query successful');
+    } catch (testError) {
+      console.error('Exception during test query:', testError);
+      throw testError;
+    }
 
     // Get campaign details from Supabase
     const { data: campaign, error: campaignError } = await supabase
