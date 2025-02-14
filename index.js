@@ -20,6 +20,7 @@ app.use(express.json());
 console.log('Attempting to initialize Supabase...');
 console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
 console.log('SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
+console.log('First 10 chars of key:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.substring(0, 10) : 'none');
 
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error('Missing required Supabase environment variables');
@@ -30,6 +31,26 @@ const supabase = createClient(
   process.env.SUPABASE_URL.trim(),
   process.env.SUPABASE_SERVICE_ROLE_KEY.trim()
 );
+
+// Test Supabase connection
+(async () => {
+  try {
+    const { data, error } = await supabase.from('notifications').select('count').limit(1);
+    if (error) {
+      console.error('Failed to test Supabase connection:', error);
+      console.error('Error details:', {
+        message: error.message,
+        hint: error.hint,
+        details: error.details,
+        code: error.code
+      });
+    } else {
+      console.log('Supabase connection test successful');
+    }
+  } catch (error) {
+    console.error('Exception during Supabase connection test:', error);
+  }
+})();
 
 console.log('Supabase client initialized successfully');
 
@@ -98,6 +119,8 @@ app.post('/send-notifications', async (req, res) => {
     }
 
     console.log('Fetching campaign with ID:', campaignId);
+    console.log('Using Supabase URL:', process.env.SUPABASE_URL);
+    console.log('Service Role Key length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
 
     // Get campaign details from Supabase
     const { data: campaign, error: campaignError } = await supabase
@@ -108,6 +131,12 @@ app.post('/send-notifications', async (req, res) => {
 
     if (campaignError) {
       console.error('Error fetching campaign:', campaignError);
+      console.error('Error details:', {
+        message: campaignError.message,
+        hint: campaignError.hint,
+        details: campaignError.details,
+        code: campaignError.code
+      });
       return res.status(500).json({ error: campaignError.message });
     }
 
@@ -142,6 +171,12 @@ app.post('/send-notifications', async (req, res) => {
 
     if (subscribersError) {
       console.error('Error fetching subscribers:', subscribersError);
+      console.error('Error details:', {
+        message: subscribersError.message,
+        hint: subscribersError.hint,
+        details: subscribersError.details,
+        code: subscribersError.code
+      });
       return res.status(500).json({ error: subscribersError.message });
     }
 
@@ -295,6 +330,12 @@ app.post('/send-notifications', async (req, res) => {
 
       if (logsError) {
         console.error('Error inserting notification logs:', logsError);
+        console.error('Error details:', {
+          message: logsError.message,
+          hint: logsError.hint,
+          details: logsError.details,
+          code: logsError.code
+        });
       }
     }
 
@@ -310,6 +351,12 @@ app.post('/send-notifications', async (req, res) => {
 
     if (updateError) {
       console.error('Error updating campaign status:', updateError);
+      console.error('Error details:', {
+        message: updateError.message,
+        hint: updateError.hint,
+        details: updateError.details,
+        code: updateError.code
+      });
     }
 
     return res.json({ 
@@ -340,6 +387,12 @@ app.post('/record-click', async (req, res) => {
 
     if (error) {
       console.error('Error recording click:', error);
+      console.error('Error details:', {
+        message: error.message,
+        hint: error.hint,
+        details: error.details,
+        code: error.code
+      });
       return res.status(500).json({ error: error.message });
     }
 
