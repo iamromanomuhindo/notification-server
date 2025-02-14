@@ -17,10 +17,12 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log('Received background message:', payload);
 
-    // Get the click URL and make sure it's valid
-    const clickUrl = (payload.data?.click_url && payload.data.click_url.startsWith('http')) 
-        ? payload.data.click_url 
-        : 'https://manomedia.shop';
+    // Get both URLs from the payload
+    const clickUrl = payload.data?.click_url || 'https://manomedia.shop';
+    const originalUrl = payload.data?.original_url;
+
+    console.log('Click URL:', clickUrl);
+    console.log('Original URL:', originalUrl);
 
     const notificationTitle = payload.notification.title;
     const notificationOptions = {
@@ -28,7 +30,10 @@ messaging.onBackgroundMessage((payload) => {
         icon: '/assets/img/logo.png',
         image: payload.notification.image,
         badge: '/assets/img/badge.png',
-        data: { url: clickUrl },
+        data: { 
+            url: clickUrl,
+            originalUrl: originalUrl 
+        },
         requireInteraction: true,
         vibrate: [200, 100, 200]
     };
@@ -36,17 +41,40 @@ messaging.onBackgroundMessage((payload) => {
     self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Simple click handler that just opens the URL
+// Handle notification clicks with proper URL handling
 self.addEventListener('notificationclick', event => {
     console.log('Notification clicked');
     event.notification.close();
 
-    const url = event.notification.data?.url || 'https://manomedia.shop';
-    console.log('Opening URL:', url);
+    // Get URLs from notification data
+    const clickUrl = event.notification.data?.url || 'https://manomedia.shop';
+    console.log('Opening URL:', clickUrl);
 
-    // Simple direct window open
+    // Try to open the window
     event.waitUntil(
-        self.clients.openWindow(url)
+        clients.matchAll({
+            type: 'window',
+            includeUncontrolled: true
+        })
+        .then(windowClients => {
+            // Check if there is already a window/tab open with the target URL
+            for (let i = 0; i < windowClients.length; i++) {
+                const client = windowClients[i];
+                // If so, just focus it.
+                if (client.url === clickUrl && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            // If not, open a new window.
+            if (clients.openWindow) {
+                return clients.openWindow(clickUrl);
+            }
+        })
+        .catch(err => {
+            console.error('Error handling click:', err);
+            // Fallback to simple window open
+            return clients.openWindow(clickUrl);
+        })
     );
 });
 
@@ -58,10 +86,12 @@ self.addEventListener('push', event => {
         const payload = event.data.json();
         console.log('Push data:', payload);
 
-        // Get the click URL and make sure it's valid
-        const clickUrl = (payload.data?.click_url && payload.data.click_url.startsWith('http')) 
-            ? payload.data.click_url 
-            : 'https://manomedia.shop';
+        // Get both URLs from the payload
+        const clickUrl = payload.data?.click_url || 'https://manomedia.shop';
+        const originalUrl = payload.data?.original_url;
+
+        console.log('Click URL:', clickUrl);
+        console.log('Original URL:', originalUrl);
 
         const notificationTitle = payload.notification.title;
         const notificationOptions = {
@@ -69,7 +99,10 @@ self.addEventListener('push', event => {
             icon: '/assets/img/logo.png',
             image: payload.notification.image,
             badge: '/assets/img/badge.png',
-            data: { url: clickUrl },
+            data: { 
+                url: clickUrl,
+                originalUrl: originalUrl 
+            },
             requireInteraction: true,
             vibrate: [200, 100, 200]
         };
