@@ -20,32 +20,62 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   // Check required environment variables
   const requiredEnvVars = {
-    SUPABASE_URL: process.env.SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? '✓ Present' : '✗ Missing',
-    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+    SUPABASE_URL: process.env.SUPABASE_URL || 'Missing',
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 
+      `Present (length: ${process.env.SUPABASE_SERVICE_ROLE_KEY.length})` : 'Missing',
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || 'Missing',
     FIREBASE_PRIVATE_KEY_ID: process.env.FIREBASE_PRIVATE_KEY_ID ? '✓ Present' : '✗ Missing',
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? '✓ Present' : '✗ Missing',
-    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || 'Missing',
     FIREBASE_CLIENT_ID: process.env.FIREBASE_CLIENT_ID ? '✓ Present' : '✗ Missing',
     FIREBASE_CLIENT_CERT_URL: process.env.FIREBASE_CLIENT_CERT_URL ? '✓ Present' : '✗ Missing'
   };
 
+  // Log environment details
+  console.log('Environment Check:');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
   console.log('Environment variables status:', requiredEnvVars);
-
+  
+  // Check if we're running in production
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   res.json({ 
     status: 'ok',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'not set',
     env: requiredEnvVars
   });
 });
 
 // Initialize Supabase client
-console.log('Initializing Supabase with URL:', process.env.SUPABASE_URL);
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+console.log('Attempting to initialize Supabase...');
+console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+console.log('SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
+
+let supabase;
+try {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Missing required Supabase environment variables');
+  }
+  
+  // Remove any whitespace from the key
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
+  
+  supabase = createClient(
+    process.env.SUPABASE_URL.trim(),
+    supabaseKey
+  );
+  
+  console.log('Supabase client initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize Supabase client:', error);
+  console.error('Error details:', {
+    message: error.message,
+    stack: error.stack
+  });
+  process.exit(1); // Exit if we can't initialize Supabase
+}
 
 // Initialize Firebase Admin
 console.log('Initializing Firebase with project ID:', process.env.FIREBASE_PROJECT_ID);
