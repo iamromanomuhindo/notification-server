@@ -263,8 +263,8 @@ app.post('/send-notifications', async (req, res) => {
             notification: {
               title: campaign.title,
               body: campaign.message,
-              imageUrl: campaign.image_url,
-              iconUrl: campaign.icon_url
+              image_url: campaign.image_url,
+              icon_url: campaign.icon_url
             },
             data: {
               click_action: campaign.click_url || 'https://manomedia.shop',
