@@ -66,7 +66,7 @@ app.post('/send-notifications', async (req, res) => {
     // Get subscribers based on target criteria
     let subscribersQuery = supabase
       .from('subscribers')
-      .select('id, device_id, device_type, country, status')
+      .select('id, device_token, device_type, country, status')
       .eq('status', 'active'); // Only get active subscribers
 
     if (campaign.target_device !== 'all') {
@@ -80,8 +80,11 @@ app.post('/send-notifications', async (req, res) => {
     const { data: subscribers, error: subscribersError } = await subscribersQuery;
 
     if (subscribersError) {
+      console.error('Error fetching subscribers:', subscribersError);
       return res.status(500).json({ error: subscribersError.message });
     }
+
+    console.log(`Found ${subscribers?.length || 0} active subscribers`);
 
     // Send notifications to each subscriber
     let sent = 0;
@@ -92,11 +95,32 @@ app.post('/send-notifications', async (req, res) => {
     if (subscribers && subscribers.length > 0) {
       for (const subscriber of subscribers) {
         try {
+          // Skip if no device token
+          if (!subscriber.device_token) {
+            console.log(`Skipping subscriber ${subscriber.id}: No device token`);
+            failed++;
+            continue;
+          }
+
+          // Log subscriber details
+          console.log('Processing subscriber:', {
+            id: subscriber.id,
+            deviceType: subscriber.device_type,
+            country: subscriber.country,
+            tokenLength: subscriber.device_token.length
+          });
+
           // Log the click URL from database
-          console.log('Campaign click_url from database:', campaign.click_url);
+          console.log('Campaign details:', {
+            id: campaign.id,
+            title: campaign.title,
+            clickUrl: campaign.click_url,
+            targetDevice: campaign.target_device,
+            targetCountries: campaign.target_countries
+          });
 
           const message = {
-            token: subscriber.id,
+            token: subscriber.device_token,
             notification: {
               title: campaign.title,
               body: campaign.message,
@@ -105,7 +129,7 @@ app.post('/send-notifications', async (req, res) => {
             },
             webpush: {
               fcmOptions: {
-                link: campaign.click_url // Direct from database
+                link: campaign.click_url
               },
               headers: {
                 image: campaign.image_url || ''
@@ -115,7 +139,7 @@ app.post('/send-notifications', async (req, res) => {
                 image: campaign.image_url || null,
                 badge: campaign.icon_url || null,
                 data: {
-                  url: campaign.click_url // Direct from database
+                  url: campaign.click_url
                 },
                 actions: [{
                   action: 'open_url',
@@ -133,12 +157,12 @@ app.post('/send-notifications', async (req, res) => {
                 imageUrl: campaign.image_url || null,
                 defaultSound: true,
                 channelId: 'default',
-                clickAction: campaign.click_url // Direct from database
+                clickAction: campaign.click_url
               }
             },
             data: {
-              url: campaign.click_url, // Direct from database
-              click_url: campaign.click_url, // Direct from database for redundancy
+              url: campaign.click_url,
+              click_url: campaign.click_url,
               campaignId: campaignId.toString(),
               title: campaign.title,
               body: campaign.message,
@@ -148,9 +172,10 @@ app.post('/send-notifications', async (req, res) => {
             }
           };
 
-          console.log('Sending notification with payload:', message);
+          console.log('Sending FCM message:', message);
 
-          await admin.messaging().send(message);
+          const result = await admin.messaging().send(message);
+          console.log('FCM send result:', result);
           sent++;
 
           // Add success log
@@ -168,7 +193,12 @@ app.post('/send-notifications', async (req, res) => {
             .eq('id', subscriber.id);
 
         } catch (error) {
-          console.error('Error sending notification:', error);
+          console.error('Error sending notification to subscriber:', {
+            subscriberId: subscriber.id,
+            error: error.message,
+            errorCode: error.code,
+            errorStack: error.stack
+          });
           failed++;
           
           // Add failure log
