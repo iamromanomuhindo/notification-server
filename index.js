@@ -128,7 +128,7 @@ app.post('/send-notifications', async (req, res) => {
               title: campaign.title,
               body: campaign.message,
               image: campaign.image_url || null,
-              clickAction: campaign.click_url
+              click_action: campaign.click_url
             },
             webpush: {
               fcmOptions: {
@@ -160,7 +160,7 @@ app.post('/send-notifications', async (req, res) => {
                 imageUrl: campaign.image_url || null,
                 defaultSound: true,
                 channelId: 'default',
-                clickAction: campaign.click_url
+                click_action: campaign.click_url
               }
             },
             data: {
