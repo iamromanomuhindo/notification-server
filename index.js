@@ -66,7 +66,7 @@ app.post('/send-notifications', async (req, res) => {
     // Get subscribers based on target criteria
     let subscribersQuery = supabase
       .from('subscribers')
-      .select('id, device_token, device_type, country, status')
+      .select('id, device_id, device_type, country, status')
       .eq('status', 'active'); // Only get active subscribers
 
     if (campaign.target_device !== 'all') {
@@ -95,9 +95,9 @@ app.post('/send-notifications', async (req, res) => {
     if (subscribers && subscribers.length > 0) {
       for (const subscriber of subscribers) {
         try {
-          // Skip if no device token
-          if (!subscriber.device_token) {
-            console.log(`Skipping subscriber ${subscriber.id}: No device token`);
+          // Skip if no FCM token (id)
+          if (!subscriber.id) {
+            console.log(`Skipping subscriber: No FCM token`);
             failed++;
             continue;
           }
@@ -105,9 +105,10 @@ app.post('/send-notifications', async (req, res) => {
           // Log subscriber details
           console.log('Processing subscriber:', {
             id: subscriber.id,
+            deviceId: subscriber.device_id,
             deviceType: subscriber.device_type,
             country: subscriber.country,
-            tokenLength: subscriber.device_token.length
+            tokenLength: subscriber.id.length
           });
 
           // Log the click URL from database
@@ -120,7 +121,7 @@ app.post('/send-notifications', async (req, res) => {
           });
 
           const message = {
-            token: subscriber.device_token,
+            token: subscriber.id, // Use id as FCM token
             notification: {
               title: campaign.title,
               body: campaign.message,
