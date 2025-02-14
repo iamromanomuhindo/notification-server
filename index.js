@@ -250,34 +250,25 @@ app.post('/send-notifications', async (req, res) => {
             tokenLength: subscriber.id.length
           });
 
-          // Create notification message with correct structure
+          // Create minimal notification message
           const message = {
+            token: subscriber.id,
             notification: {
               title: campaign.title,
               body: campaign.message
             },
             data: {
               click_url: campaign.click_url || 'https://manomedia.shop',
-              campaign_id: campaignId.toString(),
-              icon_url: campaign.icon_url || '/assets/img/logo.png',
-              image_url: campaign.image_url || ''
+              campaign_id: campaignId.toString()
             },
             webpush: {
-              notification: {
-                icon: campaign.icon_url || '/assets/img/logo.png',
-                image: campaign.image_url || null,
-                badge: '/assets/img/badge.png',
-                requireInteraction: true,
-                actions: [{
-                  action: 'open_url',
-                  title: 'Open'
-                }]
+              headers: {
+                Urgency: 'high'
               },
               fcmOptions: {
                 link: campaign.click_url || 'https://manomedia.shop'
               }
-            },
-            token: subscriber.id
+            }
           };
 
           // Log the message for debugging
@@ -286,14 +277,27 @@ app.post('/send-notifications', async (req, res) => {
             title: message.notification.title,
             body: message.notification.body,
             clickUrl: message.data.click_url,
-            fcmLink: message.webpush.fcmOptions.link,
-            icon: message.webpush.notification.icon
+            fcmLink: message.webpush.fcmOptions.link
           });
 
-          // Send the message
-          const response = await admin.messaging().send(message);
-          console.log('FCM send result:', response);
-          sent++;
+          try {
+            // Send the message
+            const response = await admin.messaging().send(message);
+            console.log('FCM send result:', response);
+            sent++;
+          } catch (error) {
+            console.error('FCM send error:', {
+              subscriberId: subscriber.id,
+              errorCode: error.code,
+              errorMessage: error.message
+            });
+            failed++;
+            errors.push({
+              subscriberId: subscriber.id,
+              errorCode: error.code,
+              errorMessage: error.message
+            });
+          }
 
           // Add success log
           logs.push({
