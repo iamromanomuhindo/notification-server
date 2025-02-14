@@ -91,7 +91,9 @@ app.post('/send-notifications', async (req, res) => {
     if (subscribers && subscribers.length > 0) {
       for (const subscriber of subscribers) {
         try {
-          // Message with icon and image
+          // Log the click URL from database
+          console.log('Campaign click_url from database:', campaign.click_url);
+
           const message = {
             token: subscriber.id,
             notification: {
@@ -102,7 +104,7 @@ app.post('/send-notifications', async (req, res) => {
             },
             webpush: {
               fcmOptions: {
-                link: campaign.click_url || ''
+                link: campaign.click_url // Direct from database
               },
               headers: {
                 image: campaign.image_url || ''
@@ -112,7 +114,7 @@ app.post('/send-notifications', async (req, res) => {
                 image: campaign.image_url || null,
                 badge: campaign.icon_url || null,
                 data: {
-                  url: campaign.click_url || ''
+                  url: campaign.click_url // Direct from database
                 },
                 actions: [{
                   action: 'open_url',
@@ -130,12 +132,12 @@ app.post('/send-notifications', async (req, res) => {
                 imageUrl: campaign.image_url || null,
                 defaultSound: true,
                 channelId: 'default',
-                clickAction: campaign.click_url || ''
+                clickAction: campaign.click_url // Direct from database
               }
             },
             data: {
-              url: campaign.click_url || '',
-              click_url: campaign.click_url || '',
+              url: campaign.click_url, // Direct from database
+              click_url: campaign.click_url, // Direct from database for redundancy
               campaignId: campaignId.toString(),
               title: campaign.title,
               body: campaign.message,
@@ -144,6 +146,8 @@ app.post('/send-notifications', async (req, res) => {
               cta_text: campaign.cta_text || 'Open'
             }
           };
+
+          console.log('Sending notification with payload:', message);
 
           await admin.messaging().send(message);
           sent++;
