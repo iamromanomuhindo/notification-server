@@ -8,7 +8,7 @@ const app = express();
 
 // CORS configuration
 const corsOptions = {
-  origin: ['https://manomedia.shop', 'http://localhost:3000'],
+  origin: ['https://notification-server-f0so.onrender.com', 'http://localhost:3000'],
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
