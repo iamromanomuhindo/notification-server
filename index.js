@@ -16,6 +16,15 @@ app.use(cors({
 
 app.use(express.json());
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
