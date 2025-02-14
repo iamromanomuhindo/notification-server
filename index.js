@@ -97,7 +97,8 @@ app.post('/send-notifications', async (req, res) => {
             notification: {
               title: campaign.title,
               body: campaign.message,
-              image: campaign.image_url || null
+              image: campaign.image_url || null,
+              clickAction: campaign.click_url
             },
             webpush: {
               fcmOptions: {
@@ -109,7 +110,17 @@ app.post('/send-notifications', async (req, res) => {
               notification: {
                 icon: campaign.icon_url || null,
                 image: campaign.image_url || null,
-                badge: campaign.icon_url || null
+                badge: campaign.icon_url || null,
+                data: {
+                  url: campaign.click_url || ''
+                },
+                actions: [{
+                  action: 'open_url',
+                  title: campaign.cta_text || 'Open',
+                  icon: campaign.icon_url || null
+                }],
+                requireInteraction: true,
+                click_action: campaign.click_url || ''
               }
             },
             android: {
@@ -118,27 +129,19 @@ app.post('/send-notifications', async (req, res) => {
                 icon: '@drawable/ic_notification',
                 imageUrl: campaign.image_url || null,
                 defaultSound: true,
-                channelId: 'default'
-              }
-            },
-            apns: {
-              payload: {
-                aps: {
-                  'mutable-content': 1,
-                  'content-available': 1
-                }
-              },
-              fcm_options: {
-                image: campaign.image_url || null
+                channelId: 'default',
+                clickAction: campaign.click_url || ''
               }
             },
             data: {
               url: campaign.click_url || '',
+              click_url: campaign.click_url || '',
               campaignId: campaignId.toString(),
               title: campaign.title,
               body: campaign.message,
               image: campaign.image_url || '',
-              icon: campaign.icon_url || ''
+              icon: campaign.icon_url || '',
+              cta_text: campaign.cta_text || 'Open'
             }
           };
 
