@@ -91,26 +91,54 @@ app.post('/send-notifications', async (req, res) => {
     if (subscribers && subscribers.length > 0) {
       for (const subscriber of subscribers) {
         try {
-          // Simplified message structure
+          // Message with icon and image
           const message = {
             token: subscriber.id,
             notification: {
               title: campaign.title,
-              body: campaign.message
+              body: campaign.message,
+              image: campaign.image_url || null
             },
             webpush: {
               fcmOptions: {
                 link: campaign.click_url || ''
+              },
+              headers: {
+                image: campaign.image_url || ''
+              },
+              notification: {
+                icon: campaign.icon_url || null,
+                image: campaign.image_url || null,
+                badge: campaign.icon_url || null
               }
             },
             android: {
-              priority: 'high'
+              priority: 'high',
+              notification: {
+                icon: '@drawable/ic_notification',
+                imageUrl: campaign.image_url || null,
+                defaultSound: true,
+                channelId: 'default'
+              }
+            },
+            apns: {
+              payload: {
+                aps: {
+                  'mutable-content': 1,
+                  'content-available': 1
+                }
+              },
+              fcm_options: {
+                image: campaign.image_url || null
+              }
             },
             data: {
               url: campaign.click_url || '',
               campaignId: campaignId.toString(),
               title: campaign.title,
-              body: campaign.message
+              body: campaign.message,
+              image: campaign.image_url || '',
+              icon: campaign.icon_url || ''
             }
           };
 
