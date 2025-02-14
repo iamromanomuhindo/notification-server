@@ -250,20 +250,25 @@ app.post('/send-notifications', async (req, res) => {
             tokenLength: subscriber.id.length
           });
 
-          // Create minimal notification message
+          // Create notification message with image
           const message = {
             token: subscriber.id,
             notification: {
               title: campaign.title,
-              body: campaign.message
+              body: campaign.message,
+              image: campaign.image_url || null
             },
             data: {
               click_url: campaign.click_url || 'https://manomedia.shop',
-              campaign_id: campaignId.toString()
+              campaign_id: campaignId.toString(),
+              image_url: campaign.image_url || ''
             },
             webpush: {
               headers: {
                 Urgency: 'high'
+              },
+              notification: {
+                image: campaign.image_url || null
               },
               fcmOptions: {
                 link: campaign.click_url || 'https://manomedia.shop'
@@ -276,6 +281,7 @@ app.post('/send-notifications', async (req, res) => {
             subscriberId: subscriber.id,
             title: message.notification.title,
             body: message.notification.body,
+            image: message.notification.image,
             clickUrl: message.data.click_url,
             fcmLink: message.webpush.fcmOptions.link
           });
