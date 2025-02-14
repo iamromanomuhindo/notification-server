@@ -90,6 +90,7 @@ app.post('/send-notifications', async (req, res) => {
     let sent = 0;
     let failed = 0;
     const logs = [];
+    const errors = [];
     const currentTime = new Date().toISOString();
 
     if (subscribers && subscribers.length > 0) {
@@ -99,6 +100,7 @@ app.post('/send-notifications', async (req, res) => {
           if (!subscriber.id) {
             console.log(`Skipping subscriber: No FCM token`);
             failed++;
+            errors.push({ error: 'No FCM token' });
             continue;
           }
 
@@ -201,6 +203,11 @@ app.post('/send-notifications', async (req, res) => {
             errorStack: error.stack
           });
           failed++;
+          errors.push({
+            subscriberId: subscriber.id,
+            error: error.message,
+            code: error.code
+          });
           
           // Add failure log
           logs.push({
@@ -237,28 +244,26 @@ app.post('/send-notifications', async (req, res) => {
       }
     }
 
-    // Update campaign status and counts
+    // Update campaign status
     const { error: updateError } = await supabase
       .from('notifications')
       .update({ 
         status: 'sent',
         sent_count: sent,
-        sent_at: currentTime,
         updated_at: currentTime
       })
       .eq('id', campaignId);
 
     if (updateError) {
-      console.error('Error updating campaign:', updateError);
+      console.error('Error updating campaign status:', updateError);
     }
 
-    // Return success response
-    return res.status(200).json({ 
-      message: 'Notifications sent successfully',
-      sent,
+    return res.json({ 
+      message: 'Notifications sent successfully', 
+      sent, 
       failed,
+      errors // Include error details in response
     });
-
   } catch (error) {
     console.error('Error in send-notifications:', error);
     return res.status(500).json({ error: error.message });
