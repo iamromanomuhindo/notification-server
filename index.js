@@ -10,11 +10,35 @@ const app = express();
 app.use(cors({
   origin: ['http://localhost:5500', 'http://127.0.0.1:5500', 'https://manomedia.onrender.com', 'https://manomedia.shop'],
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
 app.use(express.json());
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// Initialize Firebase Admin
+const serviceAccount = {
+  "type": "service_account",
+  "project_id": process.env.FIREBASE_PROJECT_ID,
+  "private_key_id": process.env.FIREBASE_PRIVATE_KEY_ID,
+  "private_key": process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  "client_email": process.env.FIREBASE_CLIENT_EMAIL,
+  "client_id": process.env.FIREBASE_CLIENT_ID,
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": process.env.FIREBASE_CLIENT_CERT_URL
+};
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
 // Health check endpoint with environment variable status
 app.get('/health', (req, res) => {
@@ -46,54 +70,6 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV || 'not set',
     env: requiredEnvVars
   });
-});
-
-// Initialize Supabase client
-console.log('Attempting to initialize Supabase...');
-console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
-console.log('SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
-
-let supabase;
-try {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Missing required Supabase environment variables');
-  }
-  
-  // Remove any whitespace from the key
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
-  
-  supabase = createClient(
-    process.env.SUPABASE_URL.trim(),
-    supabaseKey
-  );
-  
-  console.log('Supabase client initialized successfully');
-} catch (error) {
-  console.error('Failed to initialize Supabase client:', error);
-  console.error('Error details:', {
-    message: error.message,
-    stack: error.stack
-  });
-  process.exit(1); // Exit if we can't initialize Supabase
-}
-
-// Initialize Firebase Admin
-console.log('Initializing Firebase with project ID:', process.env.FIREBASE_PROJECT_ID);
-const serviceAccount = {
-  "type": "service_account",
-  "project_id": process.env.FIREBASE_PROJECT_ID,
-  "private_key_id": process.env.FIREBASE_PRIVATE_KEY_ID,
-  "private_key": process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  "client_email": process.env.FIREBASE_CLIENT_EMAIL,
-  "client_id": process.env.FIREBASE_CLIENT_ID,
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": process.env.FIREBASE_CLIENT_CERT_URL
-};
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
 });
 
 // Notification endpoint
