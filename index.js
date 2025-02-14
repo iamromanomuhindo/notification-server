@@ -103,8 +103,11 @@ app.post('/send-notifications', async (req, res) => {
     const { campaignId } = req.body;
 
     if (!campaignId) {
+      console.error('No campaign ID provided');
       return res.status(400).json({ error: 'Campaign ID is required' });
     }
+
+    console.log('Fetching campaign with ID:', campaignId);
 
     // Get campaign details from Supabase
     const { data: campaign, error: campaignError } = await supabase
@@ -113,11 +116,23 @@ app.post('/send-notifications', async (req, res) => {
       .eq('id', campaignId)
       .single();
 
-    if (campaignError || !campaign) {
-      return res.status(404).json({ 
-        error: campaignError?.message || 'Campaign not found' 
-      });
+    if (campaignError) {
+      console.error('Error fetching campaign:', campaignError);
+      return res.status(500).json({ error: campaignError.message });
     }
+
+    if (!campaign) {
+      console.error('Campaign not found:', campaignId);
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+
+    console.log('Found campaign:', {
+      id: campaign.id,
+      name: campaign.campaign_name,
+      title: campaign.title,
+      targetDevice: campaign.target_device,
+      targetCountries: campaign.target_countries
+    });
 
     // Get subscribers based on target criteria
     let subscribersQuery = supabase
