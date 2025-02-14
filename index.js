@@ -123,34 +123,26 @@ app.post('/send-notifications', async (req, res) => {
           });
 
           const message = {
-            token: subscriber.id, // Use id as FCM token
+            token: subscriber.id,
             notification: {
               title: campaign.title,
               body: campaign.message,
-              image: campaign.image_url || null,
-              click_action: campaign.click_url
+              image: campaign.image_url || null
             },
             webpush: {
               fcmOptions: {
                 link: campaign.click_url
               },
-              headers: {
-                image: campaign.image_url || ''
-              },
               notification: {
                 icon: campaign.icon_url || null,
                 image: campaign.image_url || null,
                 badge: campaign.icon_url || null,
-                data: {
-                  url: campaign.click_url
-                },
                 actions: [{
                   action: 'open_url',
                   title: campaign.cta_text || 'Open',
                   icon: campaign.icon_url || null
                 }],
-                requireInteraction: true,
-                click_action: campaign.click_url || ''
+                requireInteraction: true
               }
             },
             android: {
@@ -159,12 +151,13 @@ app.post('/send-notifications', async (req, res) => {
                 icon: '@drawable/ic_notification',
                 imageUrl: campaign.image_url || null,
                 defaultSound: true,
-                channelId: 'default',
-                click_action: campaign.click_url
+                channelId: 'default'
+              },
+              data: {
+                click_url: campaign.click_url
               }
             },
             data: {
-              url: campaign.click_url,
               click_url: campaign.click_url,
               campaignId: campaignId.toString(),
               title: campaign.title,
