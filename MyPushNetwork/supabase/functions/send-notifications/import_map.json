@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "firebase-admin": "https://deno.land/x/firebase_admin@v0.2.0/mod.ts",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3"
+  }
+}
