@@ -13,23 +13,65 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Function to handle opening URLs
+function openUrl(url) {
+    if (!url || !url.startsWith('http')) {
+        console.warn('Invalid URL:', url);
+        url = 'https://manomedia.shop';
+    }
+    
+    return clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true
+    }).then(clientList => {
+        // If we have a client, try to focus it
+        for (const client of clientList) {
+            if (client.url === url && 'focus' in client) {
+                return client.focus();
+            }
+        }
+        
+        // If no matching client, open new window
+        if (clients.openWindow) {
+            return clients.openWindow(url).catch(err => {
+                console.error('Failed to open window:', err);
+                // Fallback: try direct window.open
+                return self.clients.openWindow(url);
+            });
+        }
+    }).catch(err => {
+        console.error('Error handling URL:', err);
+        // Last resort fallback
+        return self.clients.openWindow(url);
+    });
+}
+
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
     console.log('Received background message:', payload);
+    
+    // Extract click URL from payload
+    const clickUrl = payload.data?.click_url || 'https://manomedia.shop';
+    console.log('Click URL from payload:', clickUrl);
 
     const notificationTitle = payload.notification.title;
     const notificationOptions = {
         body: payload.notification.body,
-        icon: payload.notification.icon || '/assets/img/logo.png',
+        icon: '/assets/img/logo.png',
         image: payload.notification.image,
         badge: '/assets/img/badge.png',
-        data: payload.data || {}, // Ensure data exists
+        tag: payload.data?.campaign_id || 'default',
+        renotify: true,
         requireInteraction: true,
         vibrate: [200, 100, 200],
+        data: {
+            click_url: clickUrl,
+            campaign_id: payload.data?.campaign_id
+        },
         actions: [
             {
-                action: 'open_url',
-                title: payload.notification.cta_text || 'Open'
+                action: 'open',
+                title: 'Open'
             }
         ]
     };
@@ -37,54 +79,65 @@ messaging.onBackgroundMessage((payload) => {
     self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Handle notification click
-self.addEventListener('notificationclick', (event) => {
+// Handle notification clicks
+self.addEventListener('notificationclick', function(event) {
     console.log('Notification clicked:', event);
+    
+    // Close the notification
     event.notification.close();
 
-    // Get the URL from notification data or fallback to default
-    let url = '/';
+    // Get click URL from notification data
+    const data = event.notification.data || {};
+    const clickUrl = data.click_url || 'https://manomedia.shop';
     
-    if (event.notification.data) {
-        // Check for direct URL in data
-        if (event.notification.data.url) {
-            url = event.notification.data.url;
-        } 
-        // Check for click_url in data
-        else if (event.notification.data.click_url) {
-            url = event.notification.data.click_url;
+    console.log('Opening URL:', clickUrl);
+    
+    // Handle the click action
+    event.waitUntil(openUrl(clickUrl));
+});
+
+// Handle push events
+self.addEventListener('push', function(event) {
+    console.log('Push event received:', event);
+    
+    if (event.data) {
+        try {
+            const payload = event.data.json();
+            console.log('Push data:', payload);
+
+            // Extract click URL from payload
+            const clickUrl = payload.data?.click_url || 'https://manomedia.shop';
+            console.log('Click URL from push:', clickUrl);
+
+            const notificationTitle = payload.notification.title;
+            const notificationOptions = {
+                body: payload.notification.body,
+                icon: '/assets/img/logo.png',
+                image: payload.notification.image,
+                badge: '/assets/img/badge.png',
+                tag: payload.data?.campaign_id || 'default',
+                renotify: true,
+                requireInteraction: true,
+                vibrate: [200, 100, 200],
+                data: {
+                    click_url: clickUrl,
+                    campaign_id: payload.data?.campaign_id
+                },
+                actions: [
+                    {
+                        action: 'open',
+                        title: 'Open'
+                    }
+                ]
+            };
+
+            event.waitUntil(
+                self.registration.showNotification(notificationTitle, notificationOptions)
+            );
+        } catch (error) {
+            console.error('Error handling push event:', error);
         }
     }
-
-    // Log the URL being opened
-    console.log('Opening URL:', url);
-    
-    // Open the URL in a new window/tab
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true })
-            .then((clientList) => {
-                // Try to reuse an existing window
-                for (const client of clientList) {
-                    if (client.url === url && 'focus' in client) {
-                        return client.focus();
-                    }
-                }
-                
-                // If we have a client but not matching the URL, navigate to it
-                if (clientList.length > 0) {
-                    const client = clientList[0];
-                    return client.navigate(url).then(client => client.focus());
-                }
-                
-                // If no client is open, open a new window
-                return clients.openWindow(url);
-            })
-            .catch(err => {
-                console.error('Error opening notification URL:', err);
-                // Fallback to simple window.open
-                return clients.openWindow(url);
-            })
-    );
 });
 
 // Handle push subscription change or unsubscribe
