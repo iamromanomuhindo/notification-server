@@ -85,59 +85,88 @@ app.post('/send-notifications', async (req, res) => {
     // Send notifications to each subscriber
     let sent = 0;
     let failed = 0;
+    const logs = [];
+    const currentTime = new Date().toISOString();
 
     if (subscribers && subscribers.length > 0) {
-      const message = {
-        notification: {
-          title: campaign.title,
-          body: campaign.message,
-          icon: campaign.icon_url || '',
-          image: campaign.image_url || '',
-          click_action: 'FLUTTER_NOTIFICATION_CLICK'
-        },
-        data: {
-          url: campaign.click_url || '', // Store URL in data payload
-          campaignId: campaignId.toString(),
-          click_action: 'FLUTTER_NOTIFICATION_CLICK'
-        },
-        android: {
-          notification: {
-            icon: campaign.icon_url || '',
-            image: campaign.image_url || '',
-            clickAction: 'FLUTTER_NOTIFICATION_CLICK'
-          }
-        },
-        webpush: {
-          notification: {
-            icon: campaign.icon_url || '',
-            image: campaign.image_url || '',
-            requireInteraction: true,
-            actions: [
-              {
-                action: 'open_url',
-                title: 'Open'
-              }
-            ]
-          },
-          fcmOptions: {
-            link: campaign.click_url || '' // Set the URL to open when clicked
-          }
-        }
-      };
-
       for (const subscriber of subscribers) {
-        if (subscriber.id) {
-          try {
-            await admin.messaging().send({
-              ...message,
-              token: subscriber.id,
-            });
-            sent++;
-          } catch (error) {
-            console.error('Error sending notification:', error);
-            failed++;
+        try {
+          // Simplified message structure
+          const message = {
+            token: subscriber.id,
+            notification: {
+              title: campaign.title,
+              body: campaign.message
+            },
+            webpush: {
+              fcmOptions: {
+                link: campaign.click_url || ''
+              }
+            },
+            android: {
+              priority: 'high'
+            },
+            data: {
+              url: campaign.click_url || '',
+              campaignId: campaignId.toString(),
+              title: campaign.title,
+              body: campaign.message
+            }
+          };
+
+          await admin.messaging().send(message);
+          sent++;
+
+          // Add success log
+          logs.push({
+            notification_id: campaignId,
+            subscriber_id: subscriber.id,
+            status: 'sent',
+            sent_at: currentTime
+          });
+
+          // Update subscriber's last_active_at
+          await supabase
+            .from('subscribers')
+            .update({ last_active_at: currentTime })
+            .eq('id', subscriber.id);
+
+        } catch (error) {
+          console.error('Error sending notification:', error);
+          failed++;
+          
+          // Add failure log
+          logs.push({
+            notification_id: campaignId,
+            subscriber_id: subscriber.id,
+            status: 'failed',
+            error_message: error.message,
+            sent_at: currentTime
+          });
+
+          // If the token is invalid, mark the subscriber as inactive
+          if (error.code === 'messaging/invalid-registration-token' || 
+              error.code === 'messaging/registration-token-not-registered') {
+            await supabase
+              .from('subscribers')
+              .update({ 
+                status: 'inactive',
+                unsubscribed_at: currentTime
+              })
+              .eq('id', subscriber.id);
           }
         }
+      }
+    }
+
+    // Insert notification logs
+    if (logs.length > 0) {
+      const { error: logsError } = await supabase
+        .from('notification_logs')
+        .insert(logs);
+
+      if (logsError) {
+        console.error('Error inserting notification logs:', logsError);
       }
     }
 
@@ -145,8 +174,10 @@ app.post('/send-notifications', async (req, res) => {
     const { error: updateError } = await supabase
       .from('notifications')
       .update({ 
-        status: 'completed',
+        status: 'sent',
         sent_count: sent,
+        sent_at: currentTime,
+        updated_at: currentTime
       })
       .eq('id', campaignId);
 
