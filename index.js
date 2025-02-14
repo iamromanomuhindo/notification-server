@@ -16,22 +16,39 @@ app.use(cors({
 
 app.use(express.json());
 
-// Health check endpoint
+// Health check endpoint with environment variable status
 app.get('/health', (req, res) => {
+  // Check required environment variables
+  const requiredEnvVars = {
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? '✓ Present' : '✗ Missing',
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+    FIREBASE_PRIVATE_KEY_ID: process.env.FIREBASE_PRIVATE_KEY_ID ? '✓ Present' : '✗ Missing',
+    FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? '✓ Present' : '✗ Missing',
+    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+    FIREBASE_CLIENT_ID: process.env.FIREBASE_CLIENT_ID ? '✓ Present' : '✗ Missing',
+    FIREBASE_CLIENT_CERT_URL: process.env.FIREBASE_CLIENT_CERT_URL ? '✓ Present' : '✗ Missing'
+  };
+
+  console.log('Environment variables status:', requiredEnvVars);
+
   res.json({ 
     status: 'ok',
     version: '1.0.0',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    env: requiredEnvVars
   });
 });
 
 // Initialize Supabase client
+console.log('Initializing Supabase with URL:', process.env.SUPABASE_URL);
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // Initialize Firebase Admin
+console.log('Initializing Firebase with project ID:', process.env.FIREBASE_PROJECT_ID);
 const serviceAccount = {
   "type": "service_account",
   "project_id": process.env.FIREBASE_PROJECT_ID,
