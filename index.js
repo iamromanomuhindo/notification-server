@@ -250,65 +250,48 @@ app.post('/send-notifications', async (req, res) => {
             tokenLength: subscriber.id.length
           });
 
-          // Log the click URL from database
-          console.log('Campaign details:', {
-            id: campaign.id,
-            title: campaign.title,
-            clickUrl: campaign.click_url,
-            targetDevice: campaign.target_device,
-            targetCountries: campaign.target_countries
-          });
-
+          // Create notification message
           const message = {
-            token: subscriber.id,
             notification: {
               title: campaign.title,
               body: campaign.message,
-              image: campaign.image_url || null
-            },
-            webpush: {
-              fcmOptions: {
-                link: campaign.click_url
-              },
-              notification: {
-                icon: campaign.icon_url || null,
-                image: campaign.image_url || null,
-                badge: campaign.icon_url || null,
-                actions: [{
-                  action: 'open_url',
-                  title: campaign.cta_text || 'Open',
-                  icon: campaign.icon_url || null
-                }],
-                requireInteraction: true
-              }
-            },
-            android: {
-              priority: 'high',
-              notification: {
-                icon: '@drawable/ic_notification',
-                imageUrl: campaign.image_url || null,
-                defaultSound: true,
-                channelId: 'default'
-              },
-              data: {
-                click_url: campaign.click_url
-              }
+              icon: campaign.icon_url || '/assets/img/logo.png',
+              image: campaign.image_url
             },
             data: {
-              click_url: campaign.click_url,
-              campaignId: campaignId.toString(),
-              title: campaign.title,
-              body: campaign.message,
-              image: campaign.image_url || '',
-              icon: campaign.icon_url || '',
-              cta_text: campaign.cta_text || 'Open'
-            }
+              click_url: campaign.click_url || 'https://manomedia.shop',
+              campaign_id: campaignId.toString()
+            },
+            webpush: {
+              notification: {
+                icon: campaign.icon_url || '/assets/img/logo.png',
+                image: campaign.image_url,
+                badge: '/assets/img/badge.png',
+                requireInteraction: true,
+                actions: [{
+                  action: 'open_url',
+                  title: 'Open'
+                }]
+              },
+              fcmOptions: {
+                link: campaign.click_url || 'https://manomedia.shop'
+              }
+            },
+            token: subscriber.id
           };
 
-          console.log('Sending FCM message:', message);
+          // Log the message for debugging
+          console.log('Sending notification:', {
+            subscriberId: subscriber.id,
+            title: message.notification.title,
+            body: message.notification.body,
+            clickUrl: message.data.click_url,
+            fcmLink: message.webpush.fcmOptions.link
+          });
 
-          const result = await admin.messaging().send(message);
-          console.log('FCM send result:', result);
+          // Send the message
+          const response = await admin.messaging().send(message);
+          console.log('FCM send result:', response);
           sent++;
 
           // Add success log
