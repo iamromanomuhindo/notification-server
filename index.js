@@ -250,22 +250,22 @@ app.post('/send-notifications', async (req, res) => {
             tokenLength: subscriber.id.length
           });
 
-          // Create notification message
+          // Create notification message with correct structure
           const message = {
             notification: {
               title: campaign.title,
-              body: campaign.message,
-              icon: campaign.icon_url || '/assets/img/logo.png',
-              image: campaign.image_url
+              body: campaign.message
             },
             data: {
               click_url: campaign.click_url || 'https://manomedia.shop',
-              campaign_id: campaignId.toString()
+              campaign_id: campaignId.toString(),
+              icon_url: campaign.icon_url || '/assets/img/logo.png',
+              image_url: campaign.image_url || ''
             },
             webpush: {
               notification: {
                 icon: campaign.icon_url || '/assets/img/logo.png',
-                image: campaign.image_url,
+                image: campaign.image_url || null,
                 badge: '/assets/img/badge.png',
                 requireInteraction: true,
                 actions: [{
@@ -286,7 +286,8 @@ app.post('/send-notifications', async (req, res) => {
             title: message.notification.title,
             body: message.notification.body,
             clickUrl: message.data.click_url,
-            fcmLink: message.webpush.fcmOptions.link
+            fcmLink: message.webpush.fcmOptions.link,
+            icon: message.webpush.notification.icon
           });
 
           // Send the message
