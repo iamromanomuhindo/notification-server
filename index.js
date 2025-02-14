@@ -250,7 +250,10 @@ app.post('/send-notifications', async (req, res) => {
             tokenLength: subscriber.id.length
           });
 
-          // Create notification message with image and icon
+          // Create notification message with proper click URL handling
+          const clickUrl = campaign.click_url || 'https://manomedia.shop';
+          console.log('Using click URL:', clickUrl);
+
           const message = {
             token: subscriber.id,
             notification: {
@@ -259,7 +262,7 @@ app.post('/send-notifications', async (req, res) => {
               image: campaign.image_url || null
             },
             data: {
-              click_url: campaign.click_url || 'https://manomedia.shop',
+              click_url: clickUrl,
               campaign_id: campaignId.toString(),
               image_url: campaign.image_url || '',
               icon_url: campaign.icon_url || '/assets/img/logo.png'
@@ -271,10 +274,20 @@ app.post('/send-notifications', async (req, res) => {
               notification: {
                 image: campaign.image_url || null,
                 icon: campaign.icon_url || '/assets/img/logo.png',
-                badge: '/assets/img/badge.png'
+                badge: '/assets/img/badge.png',
+                tag: campaignId.toString(), // Add tag to group notifications
+                renotify: true, // Show each notification even with same tag
+                requireInteraction: true,
+                actions: [{
+                  action: 'open_url',
+                  title: 'Open'
+                }],
+                data: {
+                  click_url: clickUrl // Add click URL here as well
+                }
               },
               fcmOptions: {
-                link: campaign.click_url || 'https://manomedia.shop'
+                link: clickUrl // FCM-specific click URL
               }
             }
           };
@@ -285,9 +298,10 @@ app.post('/send-notifications', async (req, res) => {
             title: message.notification.title,
             body: message.notification.body,
             image: message.notification.image,
-            icon: message.webpush.notification.icon,
-            clickUrl: message.data.click_url,
-            fcmLink: message.webpush.fcmOptions.link
+            clickUrl: clickUrl,
+            dataClickUrl: message.data.click_url,
+            fcmLink: message.webpush.fcmOptions.link,
+            webpushData: message.webpush.notification.data
           });
 
           try {
@@ -295,27 +309,29 @@ app.post('/send-notifications', async (req, res) => {
             const response = await admin.messaging().send(message);
             console.log('FCM send result:', response);
             sent++;
+
+            // Add success log
+            logs.push({
+              subscriber_id: subscriber.id,
+              status: 'success',
+              timestamp: currentTime,
+              click_url: clickUrl // Log the click URL
+            });
           } catch (error) {
             console.error('FCM send error:', {
               subscriberId: subscriber.id,
               errorCode: error.code,
-              errorMessage: error.message
+              errorMessage: error.message,
+              clickUrl: clickUrl // Log click URL in errors too
             });
             failed++;
             errors.push({
               subscriberId: subscriber.id,
               errorCode: error.code,
-              errorMessage: error.message
+              errorMessage: error.message,
+              clickUrl: clickUrl
             });
           }
-
-          // Add success log
-          logs.push({
-            notification_id: campaignId,
-            subscriber_id: subscriber.id,
-            status: 'sent',
-            sent_at: currentTime
-          });
 
           // Update subscriber's last_active_at
           await supabase
