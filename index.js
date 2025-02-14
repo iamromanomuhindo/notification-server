@@ -17,12 +17,24 @@ app.use(cors({
 app.use(express.json());
 
 // Initialize Supabase client
+console.log('Attempting to initialize Supabase...');
+console.log('SUPABASE_URL:', process.env.SUPABASE_URL);
+console.log('SUPABASE_SERVICE_ROLE_KEY length:', process.env.SUPABASE_SERVICE_ROLE_KEY ? process.env.SUPABASE_SERVICE_ROLE_KEY.length : 0);
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('Missing required Supabase environment variables');
+  process.exit(1);
+}
+
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_URL.trim(),
+  process.env.SUPABASE_SERVICE_ROLE_KEY.trim()
 );
 
+console.log('Supabase client initialized successfully');
+
 // Initialize Firebase Admin
+console.log('Initializing Firebase with project ID:', process.env.FIREBASE_PROJECT_ID);
 const serviceAccount = {
   "type": "service_account",
   "project_id": process.env.FIREBASE_PROJECT_ID,
@@ -39,6 +51,8 @@ const serviceAccount = {
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
+
+console.log('Firebase Admin initialized successfully');
 
 // Health check endpoint with environment variable status
 app.get('/health', (req, res) => {
