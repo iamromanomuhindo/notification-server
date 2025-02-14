@@ -250,7 +250,7 @@ app.post('/send-notifications', async (req, res) => {
             tokenLength: subscriber.id.length
           });
 
-          // Create notification message with image
+          // Create notification message with image and icon
           const message = {
             token: subscriber.id,
             notification: {
@@ -261,14 +261,17 @@ app.post('/send-notifications', async (req, res) => {
             data: {
               click_url: campaign.click_url || 'https://manomedia.shop',
               campaign_id: campaignId.toString(),
-              image_url: campaign.image_url || ''
+              image_url: campaign.image_url || '',
+              icon_url: campaign.icon_url || '/assets/img/logo.png'
             },
             webpush: {
               headers: {
                 Urgency: 'high'
               },
               notification: {
-                image: campaign.image_url || null
+                image: campaign.image_url || null,
+                icon: campaign.icon_url || '/assets/img/logo.png',
+                badge: '/assets/img/badge.png'
               },
               fcmOptions: {
                 link: campaign.click_url || 'https://manomedia.shop'
@@ -282,6 +285,7 @@ app.post('/send-notifications', async (req, res) => {
             title: message.notification.title,
             body: message.notification.body,
             image: message.notification.image,
+            icon: message.webpush.notification.icon,
             clickUrl: message.data.click_url,
             fcmLink: message.webpush.fcmOptions.link
           });
