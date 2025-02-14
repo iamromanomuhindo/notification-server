@@ -260,30 +260,52 @@ app.post('/send-notifications', async (req, res) => {
           });
 
           const message = {
+            token: subscriber.id,
             notification: {
               title: campaign.title,
-              body: campaign.message
+              body: campaign.message,
+              image: campaign.image_url || null
             },
             webpush: {
+              fcmOptions: {
+                link: campaign.click_url
+              },
               notification: {
-                icon: campaign.icon_url,
-                image: campaign.image_url
+                icon: campaign.icon_url || null,
+                image: campaign.image_url || null,
+                badge: campaign.icon_url || null,
+                actions: [{
+                  action: 'open_url',
+                  title: campaign.cta_text || 'Open',
+                  icon: campaign.icon_url || null
+                }],
+                requireInteraction: true
+              }
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                icon: '@drawable/ic_notification',
+                imageUrl: campaign.image_url || null,
+                defaultSound: true,
+                channelId: 'default'
+              },
+              data: {
+                click_url: campaign.click_url
               }
             },
             data: {
-              click_action: campaign.click_url || 'https://manomedia.shop',
-              campaign_id: campaignId.toString()
-            },
-            token: subscriber.id
+              click_url: campaign.click_url,
+              campaignId: campaignId.toString(),
+              title: campaign.title,
+              body: campaign.message,
+              image: campaign.image_url || '',
+              icon: campaign.icon_url || '',
+              cta_text: campaign.cta_text || 'Open'
+            }
           };
 
-          console.log('Sending notification:', {
-            title: message.notification.title,
-            body: message.notification.body,
-            clickUrl: message.data.click_action,
-            campaignId: message.data.campaign_id,
-            subscriberId: subscriber.id
-          });
+          console.log('Sending FCM message:', message);
 
           const result = await admin.messaging().send(message);
           console.log('FCM send result:', result);
