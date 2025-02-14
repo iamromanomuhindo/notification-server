@@ -63,16 +63,17 @@ app.post('/send-notifications', async (req, res) => {
     }
 
     // Get subscribers based on target criteria
-    const subscribersQuery = supabase
+    let subscribersQuery = supabase
       .from('subscribers')
-      .select('id, device_type, country');
+      .select('id, device_id, device_type, country, status')
+      .eq('status', 'active'); // Only get active subscribers
 
     if (campaign.target_device !== 'all') {
-      subscribersQuery.eq('device_type', campaign.target_device);
+      subscribersQuery = subscribersQuery.eq('device_type', campaign.target_device);
     }
 
     if (campaign.target_countries && campaign.target_countries.length > 0 && !campaign.target_countries.includes('ALL')) {
-      subscribersQuery.in('country', campaign.target_countries);
+      subscribersQuery = subscribersQuery.in('country', campaign.target_countries);
     }
 
     const { data: subscribers, error: subscribersError } = await subscribersQuery;
@@ -84,6 +85,8 @@ app.post('/send-notifications', async (req, res) => {
     // Send notifications to each subscriber
     let sent = 0;
     let failed = 0;
+    const logs = [];
+    const currentTime = new Date().toISOString();
 
     if (subscribers && subscribers.length > 0) {
       const message = {
@@ -92,40 +95,97 @@ app.post('/send-notifications', async (req, res) => {
           body: campaign.message,
         },
         data: {
-          click_action: campaign.click_url || '',
-          campaign_id: campaignId.toString(),
+          url: campaign.click_url || '',
+          campaignId: campaignId.toString(),
+          cta_text: campaign.cta_text || ''
         },
         android: {
           notification: {
             icon: campaign.icon_url || '',
             image: campaign.image_url || '',
-            click_action: campaign.click_url || '',
+            clickAction: campaign.click_url || '',
           },
         },
         webpush: {
           notification: {
             icon: campaign.icon_url || '',
             image: campaign.image_url || '',
+            data: {
+              url: campaign.click_url || '',
+              campaignId: campaignId.toString(),
+              cta_text: campaign.cta_text || ''
+            },
+            actions: [{
+              action: 'open_url',
+              title: campaign.cta_text || 'Open',
+              icon: campaign.icon_url || ''
+            }]
           },
           fcm_options: {
-            link: campaign.click_url || '',
-          },
-        },
+            link: campaign.click_url || ''
+          }
+        }
       };
 
       for (const subscriber of subscribers) {
-        if (subscriber.id) {
-          try {
-            await admin.messaging().send({
-              ...message,
-              token: subscriber.id,
-            });
-            sent++;
-          } catch (error) {
-            console.error('Error sending notification:', error);
-            failed++;
+        try {
+          // Use id field which contains the FCM token
+          await admin.messaging().send({
+            ...message,
+            token: subscriber.id, // id field contains the FCM token
+          });
+          sent++;
+
+          // Add success log
+          logs.push({
+            notification_id: campaignId,
+            subscriber_id: subscriber.id,
+            status: 'sent',
+            sent_at: currentTime
+          });
+
+          // Update subscriber's last_active_at
+          await supabase
+            .from('subscribers')
+            .update({ last_active_at: currentTime })
+            .eq('id', subscriber.id);
+
+        } catch (error) {
+          console.error('Error sending notification:', error);
+          failed++;
+
+          // Add failure log
+          logs.push({
+            notification_id: campaignId,
+            subscriber_id: subscriber.id,
+            status: 'failed',
+            error_message: error.message,
+            sent_at: currentTime
+          });
+
+          // If the token is invalid, mark the subscriber as inactive
+          if (error.code === 'messaging/invalid-registration-token' || 
+              error.code === 'messaging/registration-token-not-registered') {
+            await supabase
+              .from('subscribers')
+              .update({ 
+                status: 'inactive',
+                unsubscribed_at: currentTime
+              })
+              .eq('id', subscriber.id);
           }
         }
+      }
+    }
+
+    // Insert notification logs
+    if (logs.length > 0) {
+      const { error: logsError } = await supabase
+        .from('notification_logs')
+        .insert(logs);
+
+      if (logsError) {
+        console.error('Error inserting notification logs:', logsError);
       }
     }
 
@@ -133,8 +193,10 @@ app.post('/send-notifications', async (req, res) => {
     const { error: updateError } = await supabase
       .from('notifications')
       .update({ 
-        status: 'completed',
+        status: 'sent',
         sent_count: sent,
+        sent_at: currentTime,
+        updated_at: currentTime
       })
       .eq('id', campaignId);
 
