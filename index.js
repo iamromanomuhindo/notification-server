@@ -7,14 +7,12 @@ require('dotenv').config();
 const app = express();
 
 // CORS configuration
-const corsOptions = {
-  origin: ['https://notification-server-f0so.onrender.com', 'http://localhost:3000'],
+app.use(cors({
+  origin: ['http://localhost:5500', 'http://127.0.0.1:5500', 'https://manomedia.onrender.com', 'https://manomedia.shop'],
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type'],
   credentials: true
-};
-
-app.use(cors(corsOptions));
+}));
 
 app.use(express.json());
 
