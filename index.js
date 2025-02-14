@@ -63,16 +63,17 @@ app.post('/send-notifications', async (req, res) => {
     }
 
     // Get subscribers based on target criteria
-    const subscribersQuery = supabase
+    let subscribersQuery = supabase
       .from('subscribers')
-      .select('id, device_type, country');
+      .select('id, device_id, device_type, country, status')
+      .eq('status', 'active'); // Only get active subscribers
 
     if (campaign.target_device !== 'all') {
-      subscribersQuery.eq('device_type', campaign.target_device);
+      subscribersQuery = subscribersQuery.eq('device_type', campaign.target_device);
     }
 
     if (campaign.target_countries && campaign.target_countries.length > 0 && !campaign.target_countries.includes('ALL')) {
-      subscribersQuery.in('country', campaign.target_countries);
+      subscribersQuery = subscribersQuery.in('country', campaign.target_countries);
     }
 
     const { data: subscribers, error: subscribersError } = await subscribersQuery;
