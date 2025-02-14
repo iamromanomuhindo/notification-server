@@ -13,46 +13,14 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Function to handle opening URLs
-function openUrl(url) {
-    if (!url || !url.startsWith('http')) {
-        console.warn('Invalid URL:', url);
-        url = 'https://manomedia.shop';
-    }
-    
-    return clients.matchAll({
-        type: 'window',
-        includeUncontrolled: true
-    }).then(clientList => {
-        // If we have a client, try to focus it
-        for (const client of clientList) {
-            if (client.url === url && 'focus' in client) {
-                return client.focus();
-            }
-        }
-        
-        // If no matching client, open new window
-        if (clients.openWindow) {
-            return clients.openWindow(url).catch(err => {
-                console.error('Failed to open window:', err);
-                // Fallback: try direct window.open
-                return self.clients.openWindow(url);
-            });
-        }
-    }).catch(err => {
-        console.error('Error handling URL:', err);
-        // Last resort fallback
-        return self.clients.openWindow(url);
-    });
-}
-
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
     console.log('Received background message:', payload);
-    
-    // Extract click URL from payload
-    const clickUrl = payload.data?.click_url || 'https://manomedia.shop';
-    console.log('Click URL from payload:', clickUrl);
+
+    // Get the click URL and make sure it's valid
+    const clickUrl = (payload.data?.click_url && payload.data.click_url.startsWith('http')) 
+        ? payload.data.click_url 
+        : 'https://manomedia.shop';
 
     const notificationTitle = payload.notification.title;
     const notificationOptions = {
@@ -60,83 +28,57 @@ messaging.onBackgroundMessage((payload) => {
         icon: '/assets/img/logo.png',
         image: payload.notification.image,
         badge: '/assets/img/badge.png',
-        tag: payload.data?.campaign_id || 'default',
-        renotify: true,
+        data: { url: clickUrl },
         requireInteraction: true,
-        vibrate: [200, 100, 200],
-        data: {
-            click_url: clickUrl,
-            campaign_id: payload.data?.campaign_id
-        },
-        actions: [
-            {
-                action: 'open',
-                title: 'Open'
-            }
-        ]
+        vibrate: [200, 100, 200]
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Handle notification clicks
-self.addEventListener('notificationclick', function(event) {
-    console.log('Notification clicked:', event);
-    
-    // Close the notification
+// Simple click handler that just opens the URL
+self.addEventListener('notificationclick', event => {
+    console.log('Notification clicked');
     event.notification.close();
 
-    // Get click URL from notification data
-    const data = event.notification.data || {};
-    const clickUrl = data.click_url || 'https://manomedia.shop';
-    
-    console.log('Opening URL:', clickUrl);
-    
-    // Handle the click action
-    event.waitUntil(openUrl(clickUrl));
+    const url = event.notification.data?.url || 'https://manomedia.shop';
+    console.log('Opening URL:', url);
+
+    // Simple direct window open
+    event.waitUntil(
+        self.clients.openWindow(url)
+    );
 });
 
 // Handle push events
-self.addEventListener('push', function(event) {
-    console.log('Push event received:', event);
-    
-    if (event.data) {
-        try {
-            const payload = event.data.json();
-            console.log('Push data:', payload);
+self.addEventListener('push', event => {
+    if (!event.data) return;
 
-            // Extract click URL from payload
-            const clickUrl = payload.data?.click_url || 'https://manomedia.shop';
-            console.log('Click URL from push:', clickUrl);
+    try {
+        const payload = event.data.json();
+        console.log('Push data:', payload);
 
-            const notificationTitle = payload.notification.title;
-            const notificationOptions = {
-                body: payload.notification.body,
-                icon: '/assets/img/logo.png',
-                image: payload.notification.image,
-                badge: '/assets/img/badge.png',
-                tag: payload.data?.campaign_id || 'default',
-                renotify: true,
-                requireInteraction: true,
-                vibrate: [200, 100, 200],
-                data: {
-                    click_url: clickUrl,
-                    campaign_id: payload.data?.campaign_id
-                },
-                actions: [
-                    {
-                        action: 'open',
-                        title: 'Open'
-                    }
-                ]
-            };
+        // Get the click URL and make sure it's valid
+        const clickUrl = (payload.data?.click_url && payload.data.click_url.startsWith('http')) 
+            ? payload.data.click_url 
+            : 'https://manomedia.shop';
 
-            event.waitUntil(
-                self.registration.showNotification(notificationTitle, notificationOptions)
-            );
-        } catch (error) {
-            console.error('Error handling push event:', error);
-        }
+        const notificationTitle = payload.notification.title;
+        const notificationOptions = {
+            body: payload.notification.body,
+            icon: '/assets/img/logo.png',
+            image: payload.notification.image,
+            badge: '/assets/img/badge.png',
+            data: { url: clickUrl },
+            requireInteraction: true,
+            vibrate: [200, 100, 200]
+        };
+
+        event.waitUntil(
+            self.registration.showNotification(notificationTitle, notificationOptions)
+        );
+    } catch (error) {
+        console.error('Error handling push:', error);
     }
 });
 
