@@ -11,10 +11,13 @@ class Dashboard {
         this.isLoading = true;
         this.lastUpdate = null;
         this.updateInterval = 30 * 60 * 1000; // 30 minutes
+        this.supabase = null;
         
         this.initializeUI();
         this.setupEventListeners();
         this.initializeCharts();
+        this.initializeSupabase();
+        this.setupRealtimeSubscription();
         this.loadDashboardData();
         this.startAutoRefresh();
     }
@@ -116,6 +119,33 @@ class Dashboard {
         }, 5000);
     }
 
+    initializeSupabase() {
+        this.supabase = window.supabase.createClient(
+            config.supabase.url,
+            config.supabase.serviceRole
+        );
+    }
+
+    setupRealtimeSubscription() {
+        const channel = this.supabase
+            .channel('notifications_changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'notifications'
+                },
+                (payload) => {
+                    console.log('Real-time notification update:', payload);
+                    this.loadDashboardData();
+                }
+            )
+            .subscribe((status) => {
+                console.log('Subscription status:', status);
+            });
+    }
+
     async loadDashboardData() {
         // Check if it's time to update
         const now = Date.now();
@@ -127,21 +157,15 @@ class Dashboard {
             this.isLoading = true;
             this.showLoadingState();
 
-            // Initialize Supabase client
-            const supabase = window.supabase.createClient(
-                config.supabase.url,
-                config.supabase.serviceRole
-            );
-
             // Fetch all required data from Supabase
             const [
                 { data: subscribers, error: subsError },
                 { data: notifications, error: notifError }
             ] = await Promise.all([
-                supabase.from('subscribers')
+                this.supabase.from('subscribers')
                     .select('*')
                     .order('created_at', { ascending: true }),
-                supabase.from('notifications')
+                this.supabase.from('notifications')
                     .select('*')
                     .order('created_at', { ascending: true })
             ]);
@@ -150,16 +174,22 @@ class Dashboard {
             if (notifError) throw notifError;
 
             // Calculate stats
-            const totalDelivered = notifications?.filter(n => n.status === 'delivered').length || 0;
-            const totalClicked = notifications?.filter(n => n.clicked).length || 0;
+            const totalDelivered = notifications?.filter(n => n.status === 'delivered' || n.delivered_count > 0).length || 0;
+            const totalClicked = notifications?.filter(n => n.clicked || n.click_count > 0).length || 0;
+            const activeSubscribers = subscribers?.filter(s => s.status === 'active').length || 0;
+            const sentNotifications = notifications?.filter(n => n.status === 'sent' || n.status === 'delivered').length || 0;
+
+            // Calculate total sent and delivered counts
+            const totalSentCount = notifications?.reduce((sum, n) => sum + (n.sent_count || 0), 0) || 0;
+            const totalDeliveredCount = notifications?.reduce((sum, n) => sum + (n.delivered_count || 0), 0) || 0;
+            const totalClickCount = notifications?.reduce((sum, n) => sum + (n.click_count || 0), 0) || 0;
 
             const stats = {
-                subscribers: subscribers.length,
-                notifications: notifications?.length || 0,
-                deliveryRate: notifications?.length ? 
-                    (totalDelivered / notifications.length * 100).toFixed(1) : 0,
-                clickRate: totalDelivered ? 
-                    (totalClicked / totalDelivered * 100).toFixed(1) : 0
+                subscribers: activeSubscribers,
+                notifications: sentNotifications,
+                deliveryRate: totalSentCount ? 
+                    ((totalDeliveredCount / totalSentCount) * 100).toFixed(1) : 0,
+                clickRate: totalClickCount
             };
 
             // Update stats display
@@ -206,212 +236,219 @@ class Dashboard {
         document.getElementById('totalSubscribers').textContent = stats.subscribers;
         document.getElementById('notificationsSent').textContent = stats.notifications;
         document.getElementById('deliveryRate').textContent = stats.deliveryRate + '%';
-        document.getElementById('clickRate').textContent = stats.clickRate + '%';
+        document.getElementById('clickRate').textContent = stats.clickRate;
     }
 
     initializeCharts() {
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        padding: 20,
-                        usePointStyle: true
-                    }
-                }
-            }
-        };
-
         // Performance Chart
-        this.charts.performance = new Chart(
-            document.getElementById('performanceChart'),
-            {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [
-                        {
-                            label: 'Sent',
-                            data: [],
-                            borderColor: '#10B981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            tension: 0.4
-                        },
-                        {
-                            label: 'Delivered',
-                            data: [],
-                            borderColor: '#3B82F6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            tension: 0.4
-                        }
-                    ]
+        this.charts.performance = new Chart(document.getElementById('performanceChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Sent',
+                        data: [],
+                        borderColor: '#4CAF50',
+                        backgroundColor: '#4CAF5020',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Delivered',
+                        data: [],
+                        borderColor: '#2196F3',
+                        backgroundColor: '#2196F320',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Clicked',
+                        data: [],
+                        borderColor: '#FF5722',
+                        backgroundColor: '#FF572220',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    }
                 },
-                options: {
-                    ...commonOptions,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
+                scales: {
+                    y: {
+                        beginAtZero: true
                     }
                 }
             }
-        );
+        });
 
         // Growth Chart
-        this.charts.growth = new Chart(
-            document.getElementById('growthChart'),
-            {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Subscribers',
-                        data: [],
-                        borderColor: '#8B5CF6',
-                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                        tension: 0.4
-                    }]
+        this.charts.growth = new Chart(document.getElementById('growthChart'), {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'New Subscribers',
+                    data: [],
+                    backgroundColor: '#4CAF50'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
                 },
-                options: {
-                    ...commonOptions,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
-                            }
-                        }
+                scales: {
+                    y: {
+                        beginAtZero: true
                     }
                 }
             }
-        );
+        });
 
         // Geographic Distribution Chart
-        this.charts.geo = new Chart(
-            document.getElementById('geoChart'),
-            {
-                type: 'doughnut',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        data: [],
-                        backgroundColor: [
-                            '#10B981',
-                            '#3B82F6',
-                            '#8B5CF6',
-                            '#EC4899',
-                            '#F59E0B',
-                            '#6366F1'
-                        ]
-                    }]
-                },
-                options: {
-                    ...commonOptions,
-                    cutout: '60%'
+        this.charts.geo = new Chart(document.getElementById('geoChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['USA', 'Europe', 'Asia', 'Africa', 'Others'],
+                datasets: [{
+                    data: [0, 0, 0, 0, 0],
+                    backgroundColor: [
+                        '#4CAF50',
+                        '#2196F3',
+                        '#FF5722',
+                        '#FFC107',
+                        '#9C27B0'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
                 }
             }
-        );
+        });
 
         // Device Distribution Chart
-        this.charts.device = new Chart(
-            document.getElementById('deviceChart'),
-            {
-                type: 'pie',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        data: [],
-                        backgroundColor: [
-                            '#10B981',
-                            '#3B82F6',
-                            '#8B5CF6'
-                        ]
-                    }]
-                },
-                options: commonOptions
+        this.charts.device = new Chart(document.getElementById('deviceChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Desktop', 'Mobile', 'Tablet'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: [
+                        '#4CAF50',
+                        '#2196F3',
+                        '#FF5722'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
             }
-        );
+        });
     }
 
     updatePerformanceChart(notifications) {
-        if (!notifications?.length) return;
-
-        // Group by date and aggregate metrics
-        const grouped = notifications.reduce((acc, n) => {
+        const performanceData = notifications.reduce((acc, n) => {
             const date = new Date(n.created_at).toLocaleDateString();
-            if (!acc[date]) acc[date] = { sent: 0, delivered: 0 };
-            acc[date].sent++;
-            if (n.status === 'delivered') acc[date].delivered++;
+            if (!acc[date]) {
+                acc[date] = { sent: 0, delivered: 0, clicked: 0 };
+            }
+            acc[date].sent += n.sent_count || 0;
+            acc[date].delivered += n.delivered_count || 0;
+            acc[date].clicked += n.click_count || 0;
             return acc;
         }, {});
 
-        const dates = Object.keys(grouped).sort((a, b) => new Date(a) - new Date(b));
-        const sent = dates.map(d => grouped[d].sent);
-        const delivered = dates.map(d => grouped[d].delivered);
+        const dates = Object.keys(performanceData).sort();
+        const sent = dates.map(date => performanceData[date].sent);
+        const delivered = dates.map(date => performanceData[date].delivered);
+        const clicked = dates.map(date => performanceData[date].clicked);
 
         this.charts.performance.data.labels = dates;
         this.charts.performance.data.datasets[0].data = sent;
         this.charts.performance.data.datasets[1].data = delivered;
+        this.charts.performance.data.datasets[2].data = clicked;
         this.charts.performance.update();
     }
 
     updateGrowthChart(subscribers) {
-        if (!subscribers?.length) return;
-
-        // Group by date and count cumulative subscribers
-        const grouped = subscribers.reduce((acc, s) => {
+        const growthData = subscribers.reduce((acc, s) => {
             const date = new Date(s.created_at).toLocaleDateString();
             acc[date] = (acc[date] || 0) + 1;
             return acc;
         }, {});
 
-        const dates = Object.keys(grouped).sort((a, b) => new Date(a) - new Date(b));
-        let cumulative = 0;
-        const subscriberCounts = dates.map(date => cumulative += grouped[date]);
+        const dates = Object.keys(growthData).sort();
+        const counts = dates.map(date => growthData[date]);
 
         this.charts.growth.data.labels = dates;
-        this.charts.growth.data.datasets[0].data = subscriberCounts;
+        this.charts.growth.data.datasets[0].data = counts;
         this.charts.growth.update();
     }
 
     updateGeoChart(subscribers) {
-        if (!subscribers?.length) return;
+        const regions = {
+            USA: ['US'],
+            Europe: ['GB', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE', 'SE', 'NO', 'DK', 'FI', 'PL'],
+            Asia: ['CN', 'JP', 'KR', 'IN', 'ID', 'MY', 'SG', 'TH', 'VN', 'PH'],
+            Africa: ['ZA', 'NG', 'KE', 'EG', 'MA', 'GH', 'ET', 'TZ', 'UG', 'RW'],
+            Others: []
+        };
 
-        // Group by country
-        const grouped = subscribers.reduce((acc, s) => {
-            const country = s.country || 'Unknown';
-            acc[country] = (acc[country] || 0) + 1;
+        const geoData = subscribers.reduce((acc, s) => {
+            let region = 'Others';
+            for (const [key, countries] of Object.entries(regions)) {
+                if (countries.includes(s.country)) {
+                    region = key;
+                    break;
+                }
+            }
+            acc[region] = (acc[region] || 0) + 1;
             return acc;
         }, {});
 
-        const countries = Object.keys(grouped);
-        const counts = countries.map(c => grouped[c]);
-
-        this.charts.geo.data.labels = countries;
-        this.charts.geo.data.datasets[0].data = counts;
+        this.charts.geo.data.datasets[0].data = [
+            geoData.USA || 0,
+            geoData.Europe || 0,
+            geoData.Asia || 0,
+            geoData.Africa || 0,
+            geoData.Others || 0
+        ];
         this.charts.geo.update();
     }
 
     updateDeviceChart(subscribers) {
-        if (!subscribers?.length) return;
-
-        // Group by device type
-        const grouped = subscribers.reduce((acc, s) => {
-            const device = s.device_type || 'Unknown';
-            acc[device] = (acc[device] || 0) + 1;
+        const deviceData = subscribers.reduce((acc, s) => {
+            const device = s.device_type?.toLowerCase() || 'unknown';
+            if (device.includes('mobile')) acc.mobile++;
+            else if (device.includes('tablet')) acc.tablet++;
+            else acc.desktop++;
             return acc;
-        }, {});
+        }, { desktop: 0, mobile: 0, tablet: 0 });
 
-        const devices = Object.keys(grouped);
-        const counts = devices.map(d => grouped[d]);
-
-        this.charts.device.data.labels = devices;
-        this.charts.device.data.datasets[0].data = counts;
+        this.charts.device.data.datasets[0].data = [
+            deviceData.desktop,
+            deviceData.mobile,
+            deviceData.tablet
+        ];
         this.charts.device.update();
     }
 }
