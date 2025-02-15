@@ -138,7 +138,7 @@ app.post('/send-notifications', async (req, res) => {
               sent++;
               // Track delivery immediately for this subscriber
               try {
-                await fetch('https://manomedia.shop/track-delivery', {
+                await fetch('http://localhost:3000/track-delivery', {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',

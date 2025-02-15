@@ -50,7 +50,7 @@ self.addEventListener('notificationclick', async (event) => {
     // Track the click
     if (campaignId && subscriberId) {
         try {
-            await fetch('https://manomedia.shop/track-click', {
+            await fetch('http://localhost:3000/track-click', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
