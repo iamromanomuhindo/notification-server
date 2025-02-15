@@ -697,7 +697,7 @@ class NotificationManager {
             console.log(`Found ${subscribers.length} matching subscribers`);
 
             // Send notifications through notification server
-            const response = await fetch('http://localhost:3000/send-notifications', {
+            const response = await fetch('https://manomedia.shop/send-notifications', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
