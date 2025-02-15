@@ -18,32 +18,27 @@ const DEFAULT_URL = 'https://datingsites30plus.online';
 messaging.onBackgroundMessage((payload) => {
     console.log('Received background message:', payload);
 
-    // Get both URLs from the payload
-    const clickUrl = payload.data?.click_url || DEFAULT_URL;
-    const originalUrl = payload.data?.original_url;
+    // Only show notification if it's a background message without notification data
+    if (!payload.notification) {
+        const notificationTitle = payload.data.title || 'New Message';
+        const notificationOptions = {
+            body: payload.data.body || '',
+            icon: payload.data.icon || '/assets/img/logo.png',
+            image: payload.data.image,
+            badge: '/assets/img/badge.png',
+            data: { 
+                url: payload.data.click_url || DEFAULT_URL
+            },
+            requireInteraction: true,
+            vibrate: [200, 100, 200],
+            actions: [{
+                action: 'open_url',
+                title: 'Open'
+            }]
+        };
 
-    console.log('Click URL:', clickUrl);
-    console.log('Original URL:', originalUrl);
-
-    const notificationTitle = payload.notification.title;
-    const notificationOptions = {
-        body: payload.notification.body,
-        icon: '/assets/img/logo.png',
-        image: payload.notification.image,
-        badge: '/assets/img/badge.png',
-        data: { 
-            url: clickUrl,
-            originalUrl: originalUrl 
-        },
-        requireInteraction: true,
-        vibrate: [200, 100, 200],
-        actions: [{
-            action: 'open_url',
-            title: 'Open'
-        }]
-    };
-
-    self.registration.showNotification(notificationTitle, notificationOptions);
+        self.registration.showNotification(notificationTitle, notificationOptions);
+    }
 });
 
 // Handle notification clicks
@@ -51,7 +46,7 @@ self.addEventListener('notificationclick', event => {
     console.log('Notification clicked');
     event.notification.close();
 
-    // Get URLs from notification data
+    // Get URL from notification data
     const clickUrl = event.notification.data?.url || DEFAULT_URL;
     console.log('Opening URL:', clickUrl);
 
@@ -71,96 +66,32 @@ self.addEventListener('notificationclick', event => {
                 }
             }
             // If not, open a new window.
-            return clients.openWindow(clickUrl).catch(err => {
-                console.error('Failed to open window:', err);
-                // Try a simpler window.open as fallback
-                return new Promise((resolve) => {
-                    const newWindow = window.open(clickUrl, '_blank');
-                    resolve(newWindow);
-                });
-            });
+            return clients.openWindow(clickUrl);
         })
         .catch(err => {
             console.error('Error handling click:', err);
-            // Final fallback
+            // Fallback
             return clients.openWindow(clickUrl);
         })
     );
 });
 
-// Handle push events
-self.addEventListener('push', event => {
-    if (!event.data) return;
-
-    try {
-        const payload = event.data.json();
-        console.log('Push data:', payload);
-
-        // Get both URLs from the payload
-        const clickUrl = payload.data?.click_url || DEFAULT_URL;
-        const originalUrl = payload.data?.original_url;
-
-        console.log('Click URL:', clickUrl);
-        console.log('Original URL:', originalUrl);
-
-        const notificationTitle = payload.notification.title;
-        const notificationOptions = {
-            body: payload.notification.body,
-            icon: '/assets/img/logo.png',
-            image: payload.notification.image,
-            badge: '/assets/img/badge.png',
-            data: { 
-                url: clickUrl,
-                originalUrl: originalUrl 
-            },
-            requireInteraction: true,
-            vibrate: [200, 100, 200],
-            actions: [{
-                action: 'open_url',
-                title: 'Open'
-            }]
-        };
-
-        event.waitUntil(
-            self.registration.showNotification(notificationTitle, notificationOptions)
-        );
-    } catch (error) {
-        console.error('Error handling push:', error);
-    }
-});
-
 // Handle push subscription change
 self.addEventListener('pushsubscriptionchange', async (event) => {
+    console.log('Push subscription change event:', event);
     const oldSubscription = event.oldSubscription;
     
     try {
-        // Try to resubscribe
-        const newSubscription = await registration.pushManager.subscribe({ 
-            userVisibleOnly: true 
+        // Get new subscription
+        const newSubscription = await self.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: event.oldSubscription?.options?.applicationServerKey
         });
         
-        // Send to backend
-        const response = await fetch('/api/update-subscription', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                oldToken: oldSubscription?.endpoint,
-                newToken: newSubscription.endpoint
-            })
-        });
+        // Here you would typically send the new subscription to your server
+        console.log('New subscription obtained:', newSubscription);
         
-        if (!response.ok) {
-            throw new Error('Failed to update subscription');
-        }
     } catch (error) {
-        console.error('Subscription change error:', error);
-        // If resubscription fails, mark as unsubscribed
-        await fetch('/api/unsubscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                token: oldSubscription?.endpoint
-            })
-        });
+        console.error('Failed to resubscribe:', error);
     }
 });
