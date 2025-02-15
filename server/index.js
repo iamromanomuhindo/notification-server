@@ -85,31 +85,17 @@ app.post('/send-notifications', async (req, res) => {
     let failed = 0;
 
     if (subscribers && subscribers.length > 0) {
+      // Send data-only message to let the service worker handle the notification
       const message = {
-        notification: {
+        data: {
           title: campaign.title,
           body: campaign.message,
-        },
-        data: {
-          click_action: campaign.click_url || '',
+          icon: campaign.icon_url || '',
+          image: campaign.image_url || '',
+          click_url: campaign.click_url || '',
           campaign_id: campaignId.toString(),
-        },
-        android: {
-          notification: {
-            icon: campaign.icon_url || '',
-            image: campaign.image_url || '',
-            click_action: campaign.click_url || '',
-          },
-        },
-        webpush: {
-          notification: {
-            icon: campaign.icon_url || '',
-            image: campaign.image_url || '',
-          },
-          fcm_options: {
-            link: campaign.click_url || '',
-          },
-        },
+          cta_text: campaign.cta_text || 'Open'
+        }
       };
 
       for (const subscriber of subscribers) {
