@@ -55,7 +55,16 @@ class PushManager {
             // Handle foreground messages
             this.messaging.onMessage((payload) => {
                 console.log('Received foreground message:', payload);
-                this.showNotification(payload);
+                
+                // Only show notification for data-only messages or if notification payload is incomplete
+                const shouldShowNotification = !payload.notification || 
+                                            !payload.notification.title ||
+                                            !payload.notification.body;
+                
+                if (shouldShowNotification) {
+                    this.showNotification(payload);
+                }
+                // Let FCM handle complete notification payloads automatically
             });
 
         } catch (error) {
@@ -109,19 +118,22 @@ class PushManager {
             return;
         }
 
-        const notificationTitle = payload.notification.title;
+        // Use data payload if available, fallback to notification payload
+        const notificationTitle = payload.data?.title || payload.notification?.title || 'New Message';
         const notificationOptions = {
-            body: payload.notification.body,
-            icon: payload.notification.icon || '/assets/img/logo.png',
-            image: payload.notification.image,
+            body: payload.data?.body || payload.notification?.body || '',
+            icon: payload.data?.icon || payload.notification?.icon || '/assets/img/logo.png',
+            image: payload.data?.image || payload.notification?.image,
             badge: '/assets/img/badge.png',
-            data: payload.data,
+            data: {
+                url: payload.data?.click_url || payload.notification?.click_action || '/'
+            },
             requireInteraction: true,
             vibrate: [200, 100, 200],
             actions: [
                 {
                     action: 'open_url',
-                    title: payload.notification.cta_text || 'Open'
+                    title: payload.data?.cta_text || payload.notification?.cta_text || 'Open'
                 }
             ]
         };
