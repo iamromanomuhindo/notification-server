@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Security Headers for Admin Panel -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <title>Analytics - MANO MEDIA</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/dashboard.css">
+    <link rel="stylesheet" href="../assets/css/analytics.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Date Range Picker -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <h1>MANO MEDIA</h1>
+            </div>
+            <nav class="nav-menu">
+                <a href="dashboard.html" class="nav-item">
+                    <i class="fas fa-chart-line"></i>
+                    Dashboard
+                </a>
+                <a href="subscribers.html" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    Subscribers
+                </a>
+                <a href="notifications.html" class="nav-item">
+                    <i class="fas fa-bell"></i>
+                    Notifications
+                </a>
+                <!--
+					<a href="templates.html" class="nav-item">
+    					<i class="fas fa-layer-group"></i>
+    					Templates
+					</a>
+				-->
+
+                <a href="analytics.html" class="nav-item active">
+                    <i class="fas fa-chart-bar"></i>
+                    Analytics
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <button class="mobile-menu-toggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h2 class="header-title">Analytics Dashboard</h2>
+                <div class="user-menu">
+                    <span id="userEmail"></span>
+                    <button id="logoutBtn" class="btn-logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Date Range Filter -->
+            <div class="date-range-container">
+                <input type="text" id="dateRange" class="date-range-picker" />
+                <button id="exportAnalytics" class="btn-secondary">
+                    <i class="fas fa-download"></i> Export Report
+                </button>
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="dashboard-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Delivery Rate</h3>
+                        <i class="fas fa-paper-plane"></i>
+                    </div>
+                    <div class="card-value" id="deliveryRate">0%</div>
+                    <div class="card-trend positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span id="deliveryRateTrend">0%</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Click Rate</h3>
+                        <i class="fas fa-mouse-pointer"></i>
+                    </div>
+                    <div class="card-value" id="clickRate">0%</div>
+                    <div class="card-trend negative">
+                        <i class="fas fa-arrow-down"></i>
+                        <span id="clickRateTrend">0%</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Engagement Score</h3>
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <div class="card-value" id="engagementScore">0</div>
+                    <div class="card-trend positive">
+                        <i class="fas fa-arrow-up"></i>
+                        <span id="engagementTrend">0%</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Bounce Rate</h3>
+                        <i class="fas fa-undo"></i>
+                    </div>
+                    <div class="card-value" id="bounceRate">0%</div>
+                    <div class="card-trend negative">
+                        <i class="fas fa-arrow-down"></i>
+                        <span id="bounceRateTrend">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Grid -->
+            <div class="charts-grid">
+                <!-- Notification Performance -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Notification Performance</h3>
+                        <div class="chart-actions">
+                            <select id="performanceMetric">
+                                <option value="delivery">Delivery Rate</option>
+                                <option value="click">Click Rate</option>
+                                <option value="engagement">Engagement</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="performanceChart"></canvas>
+                </div>
+
+                <!-- Geographic Distribution -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Geographic Distribution</h3>
+                        <div class="chart-actions">
+                            <select id="geoMetric">
+                                <option value="subscribers">Subscribers</option>
+                                <option value="engagement">Engagement</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="geoChart"></canvas>
+                </div>
+
+                <!-- Device Distribution -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Device Distribution</h3>
+                        <div class="chart-actions">
+                            <select id="deviceMetric">
+                                <option value="browser">Browser</option>
+                                <option value="os">Operating System</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="deviceChart"></canvas>
+                </div>
+
+                <!-- Time Analysis -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>Time Analysis</h3>
+                        <div class="chart-actions">
+                            <select id="timeMetric">
+                                <option value="hourly">Hourly</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </div>
+                    </div>
+                    <canvas id="timeChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Campaign Performance Table -->
+            <div class="table-container">
+                <div class="table-header">
+                    <h3>Campaign Performance</h3>
+                    <div class="table-actions">
+                        <input type="text" id="searchCampaign" placeholder="Search campaigns..." class="search-input">
+                        <select id="campaignSort" class="sort-select">
+                            <option value="date">Date</option>
+                            <option value="delivery">Delivery Rate</option>
+                            <option value="click">Click Rate</option>
+                            <option value="engagement">Engagement</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Campaign Name</th>
+                                <th>Date</th>
+                                <th>Sent</th>
+                                <th>Delivered</th>
+                                <th>Clicked</th>
+                                <th>Delivery Rate</th>
+                                <th>Click Rate</th>
+                                <th>Engagement</th>
+                            </tr>
+                        </thead>
+                        <tbody id="campaignsList">
+                            <!-- Campaign data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <button id="prevPage" class="btn-page">Previous</button>
+                    <span id="pageInfo">Page 1 of 1</span>
+                    <button id="nextPage" class="btn-page">Next</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../assets/js/config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../assets/js/auth.js"></script>
+    <script src="../assets/js/analytics.js"></script>
+</body>
+</html>
