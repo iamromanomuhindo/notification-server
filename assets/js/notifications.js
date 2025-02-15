@@ -741,15 +741,35 @@ class NotificationManager {
             console.log('Sending notification request to:', serverUrl);
 
             try {
-                const response = await fetch(`${serverUrl}/send-notifications`, {
+                console.log('Making fetch request with the following configuration:', {
+                    url: `${serverUrl}/send-notifications`,
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    body: { campaignId: notification[0].id }
+                });
+
+                const response = await fetch(`${serverUrl}/send-notifications`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                    credentials: 'include',
                     body: JSON.stringify({
                         campaignId: notification[0].id
                     })
                 });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries([...response.headers]));
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server error response:', errorText);
+                    throw new Error(`Server responded with status ${response.status}: ${errorText}`);
+                }
 
                 const data = await response.json();
                 console.log('Server response:', data);
