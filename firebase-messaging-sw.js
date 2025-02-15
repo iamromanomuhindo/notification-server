@@ -18,16 +18,20 @@ const DEFAULT_URL = 'https://datingsites30plus.online';
 messaging.onBackgroundMessage((payload) => {
     console.log('Received background message:', payload);
 
-    // Only show notification if it's a background message without notification data
-    if (!payload.notification) {
-        const notificationTitle = payload.data.title || 'New Message';
+    // For data-only messages or when notification payload is missing required fields
+    const shouldShowNotification = !payload.notification || 
+                                 !payload.notification.title ||
+                                 !payload.notification.body;
+
+    if (shouldShowNotification) {
+        const notificationTitle = payload.data?.title || payload.notification?.title || 'New Message';
         const notificationOptions = {
-            body: payload.data.body || '',
-            icon: payload.data.icon || '/assets/img/logo.png',
-            image: payload.data.image,
+            body: payload.data?.body || payload.notification?.body || '',
+            icon: payload.data?.icon || '/assets/img/logo.png',
+            image: payload.data?.image,
             badge: '/assets/img/badge.png',
             data: { 
-                url: payload.data.click_url || DEFAULT_URL
+                url: payload.data?.click_url || DEFAULT_URL
             },
             requireInteraction: true,
             vibrate: [200, 100, 200],
@@ -39,6 +43,7 @@ messaging.onBackgroundMessage((payload) => {
 
         self.registration.showNotification(notificationTitle, notificationOptions);
     }
+    // If payload.notification exists with required fields, FCM will handle it automatically
 });
 
 // Handle notification clicks
@@ -70,7 +75,6 @@ self.addEventListener('notificationclick', event => {
         })
         .catch(err => {
             console.error('Error handling click:', err);
-            // Fallback
             return clients.openWindow(clickUrl);
         })
     );
@@ -88,7 +92,6 @@ self.addEventListener('pushsubscriptionchange', async (event) => {
             applicationServerKey: event.oldSubscription?.options?.applicationServerKey
         });
         
-        // Here you would typically send the new subscription to your server
         console.log('New subscription obtained:', newSubscription);
         
     } catch (error) {
