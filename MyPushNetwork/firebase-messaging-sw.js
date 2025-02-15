@@ -17,65 +17,69 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log('Received background message:', payload);
 
-    // Get both URLs from the payload
-    const clickUrl = payload.data?.click_url || 'https://manomedia.shop';
-    const originalUrl = payload.data?.original_url;
-
-    console.log('Click URL:', clickUrl);
-    console.log('Original URL:', originalUrl);
-
     const notificationTitle = payload.notification.title;
     const notificationOptions = {
         body: payload.notification.body,
         icon: '/assets/img/logo.png',
         image: payload.notification.image,
         badge: '/assets/img/badge.png',
-        data: { 
-            url: clickUrl,
-            originalUrl: originalUrl 
-        },
+        data: payload.data,
         requireInteraction: true,
-        vibrate: [200, 100, 200]
+        actions: [
+            {
+                action: 'open',
+                title: 'Open'
+            }
+        ]
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Handle notification clicks with proper URL handling
-self.addEventListener('notificationclick', event => {
-    console.log('Notification clicked');
+// Handle notification clicks
+self.addEventListener('notificationclick', async (event) => {
+    console.log('Notification clicked:', event);
+
+    // Close the notification
     event.notification.close();
 
-    // Get URLs from notification data
-    const clickUrl = event.notification.data?.url || 'https://manomedia.shop';
-    console.log('Opening URL:', clickUrl);
+    // Get campaign and subscriber IDs from notification data
+    const campaignId = event.notification.data.campaign_id;
+    const subscriberId = event.notification.data.subscriber_id;
 
-    // Try to open the window
-    event.waitUntil(
-        clients.matchAll({
-            type: 'window',
-            includeUncontrolled: true
-        })
-        .then(windowClients => {
-            // Check if there is already a window/tab open with the target URL
-            for (let i = 0; i < windowClients.length; i++) {
-                const client = windowClients[i];
-                // If so, just focus it.
-                if (client.url === clickUrl && 'focus' in client) {
-                    return client.focus();
-                }
-            }
-            // If not, open a new window.
-            if (clients.openWindow) {
-                return clients.openWindow(clickUrl);
-            }
-        })
-        .catch(err => {
-            console.error('Error handling click:', err);
-            // Fallback to simple window open
-            return clients.openWindow(clickUrl);
-        })
-    );
+    // Track the click
+    if (campaignId && subscriberId) {
+        try {
+            await fetch('http://localhost:3000/track-click', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    campaignId,
+                    subscriberId,
+                }),
+            });
+        } catch (error) {
+            console.error('Error tracking click:', error);
+        }
+    }
+
+    // Open the click URL if available
+    if (event.notification.data.click_action) {
+        // Focus on existing tab if available, otherwise open new one
+        event.waitUntil(
+            clients.matchAll({ type: 'window', includeUncontrolled: true })
+                .then((windowClients) => {
+                    for (let client of windowClients) {
+                        if (client.url === event.notification.data.click_action && 'focus' in client) {
+                            return client.focus();
+                        }
+                    }
+                    return clients.openWindow(event.notification.data.click_action);
+                })
+        );
+    }
 });
 
 // Handle push events

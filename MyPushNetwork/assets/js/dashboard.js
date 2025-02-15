@@ -11,10 +11,13 @@ class Dashboard {
         this.isLoading = true;
         this.lastUpdate = null;
         this.updateInterval = 30 * 60 * 1000; // 30 minutes
+        this.supabase = null;
         
         this.initializeUI();
         this.setupEventListeners();
         this.initializeCharts();
+        this.initializeSupabase();
+        this.setupRealtimeSubscription();
         this.loadDashboardData();
         this.startAutoRefresh();
     }
@@ -116,6 +119,33 @@ class Dashboard {
         }, 5000);
     }
 
+    initializeSupabase() {
+        this.supabase = window.supabase.createClient(
+            config.supabase.url,
+            config.supabase.serviceRole
+        );
+    }
+
+    setupRealtimeSubscription() {
+        const channel = this.supabase
+            .channel('notifications_changes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'notifications'
+                },
+                (payload) => {
+                    console.log('Real-time notification update:', payload);
+                    this.loadDashboardData();
+                }
+            )
+            .subscribe((status) => {
+                console.log('Subscription status:', status);
+            });
+    }
+
     async loadDashboardData() {
         // Check if it's time to update
         const now = Date.now();
@@ -127,21 +157,15 @@ class Dashboard {
             this.isLoading = true;
             this.showLoadingState();
 
-            // Initialize Supabase client
-            const supabase = window.supabase.createClient(
-                config.supabase.url,
-                config.supabase.serviceRole
-            );
-
             // Fetch all required data from Supabase
             const [
                 { data: subscribers, error: subsError },
                 { data: notifications, error: notifError }
             ] = await Promise.all([
-                supabase.from('subscribers')
+                this.supabase.from('subscribers')
                     .select('*')
                     .order('created_at', { ascending: true }),
-                supabase.from('notifications')
+                this.supabase.from('notifications')
                     .select('*')
                     .order('created_at', { ascending: true })
             ]);
@@ -150,16 +174,22 @@ class Dashboard {
             if (notifError) throw notifError;
 
             // Calculate stats
-            const totalDelivered = notifications?.filter(n => n.status === 'delivered').length || 0;
-            const totalClicked = notifications?.filter(n => n.clicked).length || 0;
+            const totalDelivered = notifications?.filter(n => n.status === 'delivered' || n.delivered_count > 0).length || 0;
+            const totalClicked = notifications?.filter(n => n.clicked || n.click_count > 0).length || 0;
+            const activeSubscribers = subscribers?.filter(s => s.status === 'active').length || 0;
+            const sentNotifications = notifications?.filter(n => n.status === 'sent' || n.status === 'delivered').length || 0;
+
+            // Calculate total sent and delivered counts
+            const totalSentCount = notifications?.reduce((sum, n) => sum + (n.sent_count || 0), 0) || 0;
+            const totalDeliveredCount = notifications?.reduce((sum, n) => sum + (n.delivered_count || 0), 0) || 0;
+            const totalClickCount = notifications?.reduce((sum, n) => sum + (n.click_count || 0), 0) || 0;
 
             const stats = {
-                subscribers: subscribers.length,
-                notifications: notifications?.length || 0,
-                deliveryRate: notifications?.length ? 
-                    (totalDelivered / notifications.length * 100).toFixed(1) : 0,
-                clickRate: totalDelivered ? 
-                    (totalClicked / totalDelivered * 100).toFixed(1) : 0
+                subscribers: activeSubscribers,
+                notifications: sentNotifications,
+                deliveryRate: totalSentCount ? 
+                    ((totalDeliveredCount / totalSentCount) * 100).toFixed(1) : 0,
+                clickRate: totalClickCount
             };
 
             // Update stats display
@@ -206,7 +236,7 @@ class Dashboard {
         document.getElementById('totalSubscribers').textContent = stats.subscribers;
         document.getElementById('notificationsSent').textContent = stats.notifications;
         document.getElementById('deliveryRate').textContent = stats.deliveryRate + '%';
-        document.getElementById('clickRate').textContent = stats.clickRate + '%';
+        document.getElementById('clickRate').textContent = stats.clickRate;
     }
 
     initializeCharts() {
@@ -346,7 +376,7 @@ class Dashboard {
             const date = new Date(n.created_at).toLocaleDateString();
             if (!acc[date]) acc[date] = { sent: 0, delivered: 0 };
             acc[date].sent++;
-            if (n.status === 'delivered') acc[date].delivered++;
+            if (n.status === 'delivered' || n.delivered_count > 0) acc[date].delivered++;
             return acc;
         }, {});
 

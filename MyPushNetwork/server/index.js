@@ -93,6 +93,7 @@ app.post('/send-notifications', async (req, res) => {
         data: {
           click_action: campaign.click_url || '',
           campaign_id: campaignId.toString(),
+          subscriber_id: '', // Will be set per subscriber
         },
         android: {
           notification: {
@@ -100,11 +101,19 @@ app.post('/send-notifications', async (req, res) => {
             image: campaign.image_url || '',
             click_action: campaign.click_url || '',
           },
+          fcm_options: {
+            analytics_label: campaignId.toString()
+          }
         },
         webpush: {
           notification: {
             icon: campaign.icon_url || '',
             image: campaign.image_url || '',
+            requireInteraction: true,
+            data: {
+              campaign_id: campaignId.toString(),
+              subscriber_id: '', // Will be set per subscriber
+            }
           },
           fcm_options: {
             link: campaign.click_url || '',
@@ -115,11 +124,34 @@ app.post('/send-notifications', async (req, res) => {
       for (const subscriber of subscribers) {
         if (subscriber.id) {
           try {
-            await admin.messaging().send({
+            // Set subscriber-specific data
+            message.data.subscriber_id = subscriber.id;
+            message.webpush.notification.data.subscriber_id = subscriber.id;
+
+            // Send with delivery tracking
+            const response = await admin.messaging().send({
               ...message,
               token: subscriber.id,
             });
-            sent++;
+
+            if (response) {
+              sent++;
+              // Track delivery immediately for this subscriber
+              try {
+                await fetch('http://localhost:3000/track-delivery', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    campaignId,
+                    subscriberId: subscriber.id,
+                  }),
+                });
+              } catch (trackError) {
+                console.error('Error tracking delivery:', trackError);
+              }
+            }
           } catch (error) {
             console.error('Error sending notification:', error);
             failed++;
@@ -150,6 +182,88 @@ app.post('/send-notifications', async (req, res) => {
 
   } catch (error) {
     console.error('Error in send-notifications:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Track notification delivery
+app.post('/track-delivery', async (req, res) => {
+  try {
+    const { campaignId, subscriberId } = req.body;
+
+    if (!campaignId || !subscriberId) {
+      return res.status(400).json({ error: 'Campaign ID and Subscriber ID are required' });
+    }
+
+    // Get current notification data
+    const { data: notification, error: notifError } = await supabase
+      .from('notifications')
+      .select('delivered_count')
+      .eq('id', campaignId)
+      .single();
+
+    if (notifError) {
+      return res.status(500).json({ error: notifError.message });
+    }
+
+    // Update delivery count and status
+    const { error: updateError } = await supabase
+      .from('notifications')
+      .update({ 
+        delivered_count: (notification?.delivered_count || 0) + 1,
+        status: 'delivered',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', campaignId);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    return res.status(200).json({ message: 'Delivery tracked successfully' });
+  } catch (error) {
+    console.error('Error tracking delivery:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Track notification clicks
+app.post('/track-click', async (req, res) => {
+  try {
+    const { campaignId, subscriberId } = req.body;
+
+    if (!campaignId || !subscriberId) {
+      return res.status(400).json({ error: 'Campaign ID and Subscriber ID are required' });
+    }
+
+    // Get current notification data
+    const { data: notification, error: notifError } = await supabase
+      .from('notifications')
+      .select('click_count')
+      .eq('id', campaignId)
+      .single();
+
+    if (notifError) {
+      return res.status(500).json({ error: notifError.message });
+    }
+
+    // Update click count
+    const { error: updateError } = await supabase
+      .from('notifications')
+      .update({ 
+        click_count: (notification?.click_count || 0) + 1,
+        clicked: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', campaignId);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    return res.status(200).json({ message: 'Click tracked successfully' });
+  } catch (error) {
+    console.error('Error tracking click:', error);
     return res.status(500).json({ error: error.message });
   }
 });
