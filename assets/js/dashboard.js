@@ -176,7 +176,7 @@ class Dashboard {
             if (notifError) throw notifError;
 
             // Calculate stats
-            const totalDelivered = notifications?.filter(n => n.status === 'delivered' || n.delivered_count > 0).length || 0;
+            const totalDelivered = notifications?.filter(n => n.status === 'delivered' || n.status === 'completed' || n.delivered_count > 0).length || 0;
             const totalClicked = notifications?.filter(n => n.clicked || n.click_count > 0).length || 0;
             const activeSubscribers = subscribers?.filter(s => s.status === 'active').length || 0;
             
@@ -186,8 +186,8 @@ class Dashboard {
                 if (n.sent_count > 0) {
                     return sum + n.sent_count;
                 }
-                // If no sent_count but has a status of sent/delivered
-                if (n.status === 'sent' || n.status === 'delivered') {
+                // If no sent_count but has a status of sent/delivered/completed
+                if (n.status === 'sent' || n.status === 'delivered' || n.status === 'completed') {
                     return sum + 1;
                 }
                 return sum;
@@ -198,8 +198,8 @@ class Dashboard {
                 if (n.delivered_count > 0) {
                     return sum + n.delivered_count;
                 }
-                // If no delivered_count but status is delivered
-                if (n.status === 'delivered') {
+                // If no delivered_count but status is delivered or completed
+                if (n.status === 'delivered' || n.status === 'completed') {
                     return sum + 1;
                 }
                 return sum;
