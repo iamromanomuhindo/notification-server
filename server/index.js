@@ -93,7 +93,7 @@ app.post('/send', async (req, res) => {
           icon: campaign.icon_url || '',
           image: campaign.image_url || '',
           click_url: campaign.click_url || '',
-          campaign_id: campaignId.toString(),
+          campaignId: campaignId.toString(),
           cta_text: campaign.cta_text || 'Open'
         }
       };
@@ -139,6 +139,47 @@ app.post('/send', async (req, res) => {
   } catch (error) {
     console.error('Error in send-notifications:', error);
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// Track notification clicks
+app.post('/track-click', async (req, res) => {
+  try {
+    const { campaignId } = req.body;
+
+    if (!campaignId) {
+      return res.status(400).json({ error: 'Campaign ID is required' });
+    }
+
+    // Get current notification
+    const { data: notification, error: notificationError } = await supabase
+      .from('notifications')
+      .select('click_count')
+      .eq('id', campaignId)
+      .single();
+
+    if (notificationError) {
+      console.error('Error getting notification:', notificationError);
+      return res.status(500).json({ error: notificationError.message });
+    }
+
+    // Update click count
+    const { error: updateError } = await supabase
+      .from('notifications')
+      .update({ 
+        click_count: (notification.click_count || 0) + 1
+      })
+      .eq('id', campaignId);
+
+    if (updateError) {
+      console.error('Error updating click count:', updateError);
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error tracking click:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

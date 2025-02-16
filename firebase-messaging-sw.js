@@ -51,9 +51,24 @@ self.addEventListener('notificationclick', event => {
     console.log('Notification clicked');
     event.notification.close();
 
-    // Get URL from notification data
+    // Get URL and campaign ID from notification data
     const clickUrl = event.notification.data?.url || DEFAULT_URL;
+    const campaignId = event.notification.data?.campaignId;
     console.log('Opening URL:', clickUrl);
+
+    // Track the click
+    if (campaignId) {
+        fetch('https://notification-server-f0so.onrender.com/track-click', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ campaignId })
+        })
+        .then(response => response.json())
+        .then(data => console.log('Click tracked:', data))
+        .catch(err => console.error('Error tracking click:', err));
+    }
 
     // Try to open the window
     event.waitUntil(
