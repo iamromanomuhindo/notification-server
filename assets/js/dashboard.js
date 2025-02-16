@@ -177,7 +177,13 @@ class Dashboard {
             const totalDelivered = notifications?.filter(n => n.status === 'delivered' || n.delivered_count > 0).length || 0;
             const totalClicked = notifications?.filter(n => n.clicked || n.click_count > 0).length || 0;
             const activeSubscribers = subscribers?.filter(s => s.status === 'active').length || 0;
-            const sentNotifications = notifications?.filter(n => n.status === 'sent' || n.status === 'delivered').length || 0;
+            
+            // Include 'completed' status when counting sent notifications
+            const sentNotifications = notifications?.filter(n => 
+                n.status === 'sent' || 
+                n.status === 'delivered' || 
+                n.status === 'completed'
+            ).length || 0;
 
             // Calculate total sent and delivered counts
             const totalSentCount = notifications?.reduce((sum, n) => sum + (n.sent_count || 0), 0) || 0;
@@ -186,7 +192,7 @@ class Dashboard {
 
             const stats = {
                 subscribers: activeSubscribers,
-                notifications: sentNotifications,
+                notifications: totalSentCount, // Use actual sent count instead of status count
                 deliveryRate: totalSentCount ? 
                     ((totalDeliveredCount / totalSentCount) * 100).toFixed(1) : 0,
                 clickRate: totalClickCount
@@ -199,15 +205,14 @@ class Dashboard {
             this.updatePerformanceChart(notifications);
             this.updateGrowthChart(subscribers);
             this.updateGeoChart(subscribers);
-            this.updateDeviceChart(subscribers);
 
+            this.isLoading = false;
             this.lastUpdate = now;
-            console.log('Dashboard data loaded:', { stats, lastUpdate: new Date(this.lastUpdate) });
+            this.hideLoadingState();
 
         } catch (error) {
             console.error('Error loading dashboard data:', error);
-            // Don't show error message, just keep previous data
-        } finally {
+            this.showError('Failed to load dashboard data. Please try again.');
             this.isLoading = false;
             this.hideLoadingState();
         }
