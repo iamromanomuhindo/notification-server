@@ -4,6 +4,29 @@ ADD COLUMN IF NOT EXISTS last_clicked_at timestamp with time zone,
 ADD COLUMN IF NOT EXISTS clicked_urls jsonb[] DEFAULT array[]::jsonb[],
 ADD COLUMN IF NOT EXISTS unique_clicks integer DEFAULT 0;
 
+-- Update existing rows to have default values
+UPDATE notifications 
+SET 
+    last_clicked_at = CASE 
+        WHEN click_count > 0 THEN NOW()
+        ELSE NULL
+    END,
+    clicked_urls = CASE 
+        WHEN click_count > 0 THEN array[jsonb_build_object(
+            'timestamp', NOW(),
+            'url', null,
+            'userAgent', null,
+            'referrer', null,
+            'ipAddress', null
+        )]
+        ELSE array[]::jsonb[]
+    END,
+    unique_clicks = CASE 
+        WHEN click_count > 0 THEN 1
+        ELSE 0
+    END
+WHERE click_count > 0;
+
 -- Create function to update click tracking
 CREATE OR REPLACE FUNCTION update_click_tracking()
 RETURNS trigger AS $$
@@ -37,16 +60,20 @@ CREATE TRIGGER update_click_tracking_trigger
 
 -- Create rate limiting table
 CREATE TABLE IF NOT EXISTS click_rate_limits (
-  campaign_id bigint REFERENCES notifications(id),
+  campaign_id uuid REFERENCES notifications(id),
   ip_address text,
   last_click timestamp with time zone,
   click_count integer DEFAULT 1,
   PRIMARY KEY (campaign_id, ip_address)
 );
 
+-- Create index for rate limiting queries
+CREATE INDEX IF NOT EXISTS idx_click_rate_limits_last_click 
+ON click_rate_limits(last_click);
+
 -- Create function to check rate limits
 CREATE OR REPLACE FUNCTION check_click_rate_limit(
-  p_campaign_id bigint,
+  p_campaign_id uuid,
   p_ip_address text,
   p_max_clicks integer DEFAULT 10,
   p_window_minutes integer DEFAULT 5
