@@ -188,6 +188,50 @@ app.post('/send-notifications', async (req, res) => {
   }
 });
 
+// Click tracking endpoint
+app.post('/track-click', async (req, res) => {
+  try {
+    const { campaignId } = req.body;
+
+    if (!campaignId) {
+      return res.status(400).json({ error: 'Campaign ID is required' });
+    }
+
+    // Get current notification data
+    const { data: notification, error: fetchError } = await supabase
+      .from('notifications')
+      .select('click_count')
+      .eq('id', campaignId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching notification:', fetchError);
+      return res.status(500).json({ error: fetchError.message });
+    }
+
+    // Update click count
+    const { error: updateError } = await supabase
+      .from('notifications')
+      .update({ 
+        click_count: (notification?.click_count || 0) + 1
+      })
+      .eq('id', campaignId);
+
+    if (updateError) {
+      console.error('Error updating click count:', updateError);
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    return res.status(200).json({ 
+      message: 'Click tracked successfully'
+    });
+
+  } catch (error) {
+    console.error('Error in track-click:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
