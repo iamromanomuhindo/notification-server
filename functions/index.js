@@ -138,8 +138,9 @@ exports.sendNotifications = functions.https.onRequest((req, res) => {
       const { error: updateError } = await supabaseClient
         .from('notifications')
         .update({ 
-          status: 'completed',
+          status: 'delivered',
           sent_count: sent,
+          delivered_count: sent
         })
         .eq('id', campaignId);
 
