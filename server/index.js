@@ -8,8 +8,8 @@ const app = express();
 
 // Enable CORS for your frontend domain
 app.use(cors({
-  origin: ['https://manomedia.shop', 'http://localhost:3000'],
-  methods: ['POST', 'OPTIONS'],
+  origin: '*', // Allow all origins during testing
+  methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
@@ -118,7 +118,7 @@ app.post('/send', async (req, res) => {
     const { error: updateError } = await supabase
       .from('notifications')
       .update({ 
-        status: 'sent',
+        status: 'completed',
         sent_count: sent,
         delivered_count: sent // We'll update this later when we get delivery confirmations
       })
@@ -126,6 +126,7 @@ app.post('/send', async (req, res) => {
 
     if (updateError) {
       console.error('Error updating campaign:', updateError);
+      return res.status(500).json({ error: updateError.message });
     }
 
     // Return success response
