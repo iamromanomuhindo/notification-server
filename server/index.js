@@ -118,9 +118,9 @@ app.post('/send-notifications', async (req, res) => {
     const { error: updateError } = await supabase
       .from('notifications')
       .update({ 
-        status: 'delivered',
+        status: 'sent',
         sent_count: sent,
-        delivered_count: sent
+        delivered_count: sent // We'll update this later when we get delivery confirmations
       })
       .eq('id', campaignId);
 
