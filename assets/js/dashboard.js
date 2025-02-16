@@ -151,107 +151,60 @@ class Dashboard {
     }
 
     async loadDashboardData() {
-        // Check if it's time to update
-        const now = Date.now();
-        if (this.lastUpdate && (now - this.lastUpdate < this.updateInterval)) {
-            return;
-        }
-
         try {
             this.isLoading = true;
             this.showLoadingState();
 
-            // Fetch all required data from Supabase
-            const [
-                { data: subscribers, error: subsError },
-                { data: notifications, error: notifError }
-            ] = await Promise.all([
-                this.supabase.from('subscribers')
-                    .select('*')
-                    .order('created_at', { ascending: true }),
-                this.supabase.from('notifications')
-                    .select('*')
-                    .order('created_at', { ascending: true })
-            ]);
+            // Get notifications data
+            const { data: notifications, error: notificationsError } = await this.supabase
+                .from('notifications')
+                .select('*');
 
-            if (subsError) throw subsError;
-            if (notifError) throw notifError;
+            if (notificationsError) throw notificationsError;
 
-            // Calculate stats
-            const totalDelivered = notifications?.filter(n => n.status === 'delivered' || n.status === 'completed' || n.delivered_count > 0).length || 0;
-            const totalClicked = notifications?.filter(n => n.clicked || n.click_count > 0).length || 0;
-            const activeSubscribers = subscribers?.filter(s => s.status === 'active').length || 0;
-            
-            // Calculate total sent and delivered counts
-            const totalSentCount = notifications?.reduce((sum, n) => {
-                // First check sent_count
-                if (n.sent_count > 0) {
-                    return sum + n.sent_count;
-                }
-                // If no sent_count but has a status of sent/delivered/completed
-                if (n.status === 'sent' || n.status === 'delivered' || n.status === 'completed') {
-                    return sum + 1;
-                }
-                return sum;
-            }, 0) || 0;
+            // Calculate statistics
+            const totalNotifications = notifications.length;
+            const totalClicks = notifications.reduce((sum, notification) => {
+                return sum + (notification.clicked_urls ? notification.clicked_urls.length : 0);
+            }, 0);
+            const uniqueClicks = notifications.reduce((sum, notification) => {
+                return sum + (notification.unique_clicks || 0);
+            }, 0);
 
-            const totalDeliveredCount = notifications?.reduce((sum, n) => {
-                // First check delivered_count
-                if (n.delivered_count > 0) {
-                    return sum + n.delivered_count;
-                }
-                // If no delivered_count but status is delivered or completed
-                if (n.status === 'delivered' || n.status === 'completed') {
-                    return sum + 1;
-                }
-                return sum;
-            }, 0) || 0;
+            // Get subscribers count
+            const { count: subscribersCount, error: subscribersError } = await this.supabase
+                .from('subscribers')
+                .select('*', { count: 'exact' });
 
-            const totalClicks = notifications?.reduce((sum, n) => {
-                return sum + (n.click_count || 0);
-            }, 0) || 0;
+            if (subscribersError) throw subscribersError;
 
-            const uniqueClicks = notifications?.reduce((sum, n) => {
-                return sum + (n.unique_clicks || 0);
-            }, 0) || 0;
+            // Update stats
+            this.stats.subscribers = subscribersCount;
+            this.stats.notifications = totalNotifications;
+            this.stats.clickRate = totalClicks;
+            this.stats.uniqueClicks = uniqueClicks;
+            this.stats.ctr = totalNotifications > 0 ? ((uniqueClicks / totalNotifications) * 100).toFixed(2) : 0;
 
-            const ctr = totalSentCount > 0 
-                ? ((uniqueClicks / totalSentCount) * 100).toFixed(1) 
-                : 0;
+            // Update UI
+            document.getElementById('totalSubscribers').textContent = this.stats.subscribers.toLocaleString();
+            document.getElementById('notificationsSent').textContent = this.stats.notifications.toLocaleString();
+            document.getElementById('clickRate').textContent = this.stats.clickRate.toLocaleString();
+            document.getElementById('deliveryRate').textContent = this.stats.ctr + '%';
 
-            this.stats = {
-                subscribers: activeSubscribers,
-                notifications: totalSentCount,
-                deliveryRate: totalSentCount ? Math.round((totalDeliveredCount / totalSentCount) * 100) : 0,
-                clickRate: totalClicks,
-                uniqueClicks: uniqueClicks,
-                ctr: ctr
-            };
+            // Remove loading states
+            document.querySelectorAll('.loading-spinner').forEach(spinner => {
+                spinner.remove();
+            });
 
-            document.getElementById('totalSubscribers').textContent = this.stats.subscribers;
-            document.getElementById('notificationsSent').textContent = this.stats.notifications;
-            document.getElementById('deliveryRate').textContent = `${this.stats.deliveryRate}%`;
-            document.getElementById('clickRate').textContent = `${this.stats.clickRate} (${this.stats.uniqueClicks} unique)`;
-
-            const clickRateElement = document.getElementById('clickRate');
-            if (clickRateElement) {
-                clickRateElement.title = `Click-through rate: ${this.stats.ctr}%`;
-            }
-
-            // Process and update chart data
-            this.updatePerformanceChart(notifications);
-            this.updateGrowthChart(subscribers);
-            this.updateGeoChart(subscribers);
-
+            this.lastUpdate = new Date();
             this.isLoading = false;
-            this.lastUpdate = now;
-            this.hideLoadingState();
 
         } catch (error) {
             console.error('Error loading dashboard data:', error);
-            this.showError('Failed to load dashboard data. Please try again.');
-            this.isLoading = false;
-            this.hideLoadingState();
+            // Show error state in UI
+            document.querySelectorAll('.card-value').forEach(card => {
+                card.textContent = 'Error';
+            });
         }
     }
 

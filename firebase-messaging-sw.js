@@ -56,8 +56,9 @@ self.addEventListener('notificationclick', event => {
     const campaignId = event.notification.data?.campaignId;
     console.log('Opening URL:', clickUrl);
 
-    // Track the click using Edge Function
+    // Track the click using both Edge Function and server
     if (campaignId) {
+        // Track via Edge Function
         fetch('https://jdyugieeawrcbxpoiyho.functions.supabase.co/track-click', {
             method: 'POST',
             headers: {
@@ -71,8 +72,24 @@ self.addEventListener('notificationclick', event => {
             })
         })
         .then(response => response.json())
-        .then(data => console.log('Click tracked:', data))
-        .catch(err => console.error('Error tracking click:', err));
+        .then(data => console.log('Edge Function click tracked:', data))
+        .catch(err => console.error('Error tracking click in Edge Function:', err));
+
+        // Track via server
+        fetch('https://manomedia.onrender.com/track-click', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                campaignId,
+                url: clickUrl,
+                userAgent: self.navigator.userAgent
+            })
+        })
+        .then(response => response.json())
+        .then(data => console.log('Server click tracked:', data))
+        .catch(err => console.error('Error tracking click in server:', err));
     }
 
     // Try to open the window
