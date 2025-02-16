@@ -205,18 +205,21 @@ class Dashboard {
                 return sum;
             }, 0) || 0;
 
-            const totalClickCount = notifications?.reduce((sum, n) => sum + (n.click_count || 0), 0) || 0;
+            const totalClicks = notifications?.reduce((sum, n) => {
+                return sum + (n.click_count || 0);
+            }, 0) || 0;
 
-            const stats = {
+            this.stats = {
                 subscribers: activeSubscribers,
                 notifications: totalSentCount,
-                deliveryRate: totalSentCount ? 
-                    ((totalDeliveredCount / totalSentCount) * 100).toFixed(1) : 0,
-                clickRate: totalClickCount
+                deliveryRate: totalSentCount ? Math.round((totalDeliveredCount / totalSentCount) * 100) : 0,
+                clickRate: totalClicks
             };
 
-            // Update stats display
-            this.updateDashboardStats(stats);
+            document.getElementById('totalSubscribers').textContent = this.stats.subscribers;
+            document.getElementById('notificationsSent').textContent = this.stats.notifications;
+            document.getElementById('deliveryRate').textContent = `${this.stats.deliveryRate}%`;
+            document.getElementById('clickRate').textContent = this.stats.clickRate;
 
             // Process and update chart data
             this.updatePerformanceChart(notifications);
