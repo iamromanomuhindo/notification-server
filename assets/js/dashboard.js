@@ -5,7 +5,9 @@ class Dashboard {
             subscribers: 0,
             notifications: 0,
             deliveryRate: 0,
-            clickRate: 0
+            clickRate: 0,
+            uniqueClicks: 0,
+            ctr: 0
         };
         this.refreshInterval = null;
         this.isLoading = true;
@@ -209,17 +211,32 @@ class Dashboard {
                 return sum + (n.click_count || 0);
             }, 0) || 0;
 
+            const uniqueClicks = notifications?.reduce((sum, n) => {
+                return sum + (n.unique_clicks || 0);
+            }, 0) || 0;
+
+            const ctr = totalSentCount > 0 
+                ? ((uniqueClicks / totalSentCount) * 100).toFixed(1) 
+                : 0;
+
             this.stats = {
                 subscribers: activeSubscribers,
                 notifications: totalSentCount,
                 deliveryRate: totalSentCount ? Math.round((totalDeliveredCount / totalSentCount) * 100) : 0,
-                clickRate: totalClicks
+                clickRate: totalClicks,
+                uniqueClicks: uniqueClicks,
+                ctr: ctr
             };
 
             document.getElementById('totalSubscribers').textContent = this.stats.subscribers;
             document.getElementById('notificationsSent').textContent = this.stats.notifications;
             document.getElementById('deliveryRate').textContent = `${this.stats.deliveryRate}%`;
-            document.getElementById('clickRate').textContent = this.stats.clickRate;
+            document.getElementById('clickRate').textContent = `${this.stats.clickRate} (${this.stats.uniqueClicks} unique)`;
+
+            const clickRateElement = document.getElementById('clickRate');
+            if (clickRateElement) {
+                clickRateElement.title = `Click-through rate: ${this.stats.ctr}%`;
+            }
 
             // Process and update chart data
             this.updatePerformanceChart(notifications);

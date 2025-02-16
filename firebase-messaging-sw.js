@@ -56,14 +56,19 @@ self.addEventListener('notificationclick', event => {
     const campaignId = event.notification.data?.campaignId;
     console.log('Opening URL:', clickUrl);
 
-    // Track the click
+    // Track the click using Edge Function
     if (campaignId) {
-        fetch('https://notification-server-f0so.onrender.com/track-click', {
+        fetch('https://jdyugieeawrcbxpoiyho.functions.supabase.co/track-click', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpkeXVnaWVlYXdyY2J4cG9peWhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyODU2NzMsImV4cCI6MjA1Mjg2MTY3M30.rvY2yZcPGrHQtqDyFUe_lO-LGu3_tZGAXOXYwJY7aD8'
             },
-            body: JSON.stringify({ campaignId })
+            body: JSON.stringify({
+                campaignId,
+                url: clickUrl,
+                userAgent: self.navigator.userAgent
+            })
         })
         .then(response => response.json())
         .then(data => console.log('Click tracked:', data))
