@@ -180,20 +180,31 @@ class Dashboard {
             const totalClicked = notifications?.filter(n => n.clicked || n.click_count > 0).length || 0;
             const activeSubscribers = subscribers?.filter(s => s.status === 'active').length || 0;
             
-            // Include 'completed' status when counting sent notifications
+            // Calculate total sent and delivered counts
             const totalSentCount = notifications?.reduce((sum, n) => {
                 // First check sent_count
                 if (n.sent_count > 0) {
                     return sum + n.sent_count;
                 }
-                // If no sent_count but has a status of sent/delivered/completed
-                if (n.status === 'sent' || n.status === 'delivered' || n.status === 'completed') {
+                // If no sent_count but has a status of sent/delivered
+                if (n.status === 'sent' || n.status === 'delivered') {
                     return sum + 1;
                 }
                 return sum;
             }, 0) || 0;
 
-            const totalDeliveredCount = notifications?.reduce((sum, n) => sum + (n.delivered_count || 0), 0) || 0;
+            const totalDeliveredCount = notifications?.reduce((sum, n) => {
+                // First check delivered_count
+                if (n.delivered_count > 0) {
+                    return sum + n.delivered_count;
+                }
+                // If no delivered_count but status is delivered
+                if (n.status === 'delivered') {
+                    return sum + 1;
+                }
+                return sum;
+            }, 0) || 0;
+
             const totalClickCount = notifications?.reduce((sum, n) => sum + (n.click_count || 0), 0) || 0;
 
             const stats = {
