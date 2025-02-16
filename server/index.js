@@ -40,9 +40,9 @@ admin.initializeApp({
 });
 
 // Notification endpoint
-app.post('/send-notifications', async (req, res) => {
+app.post('/send', async (req, res) => {
   try {
-    const { campaignId } = req.body;
+    const { campaignId, title, message, icon, image, url } = req.body;
 
     if (!campaignId) {
       return res.status(400).json({ error: 'Campaign ID is required' });
