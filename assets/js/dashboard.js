@@ -138,11 +138,13 @@ class Dashboard {
                 },
                 (payload) => {
                     console.log('Real-time notification update:', payload);
+                    // Force immediate refresh when notification is updated
+                    this.lastUpdate = null; // Reset last update time
                     this.loadDashboardData();
                 }
             )
             .subscribe((status) => {
-                console.log('Subscription status:', status);
+                console.log('Realtime subscription status:', status);
             });
     }
 
@@ -179,20 +181,24 @@ class Dashboard {
             const activeSubscribers = subscribers?.filter(s => s.status === 'active').length || 0;
             
             // Include 'completed' status when counting sent notifications
-            const sentNotifications = notifications?.filter(n => 
-                n.status === 'sent' || 
-                n.status === 'delivered' || 
-                n.status === 'completed'
-            ).length || 0;
+            const totalSentCount = notifications?.reduce((sum, n) => {
+                // First check sent_count
+                if (n.sent_count > 0) {
+                    return sum + n.sent_count;
+                }
+                // If no sent_count but has a status of sent/delivered/completed
+                if (n.status === 'sent' || n.status === 'delivered' || n.status === 'completed') {
+                    return sum + 1;
+                }
+                return sum;
+            }, 0) || 0;
 
-            // Calculate total sent and delivered counts
-            const totalSentCount = notifications?.reduce((sum, n) => sum + (n.sent_count || 0), 0) || 0;
             const totalDeliveredCount = notifications?.reduce((sum, n) => sum + (n.delivered_count || 0), 0) || 0;
             const totalClickCount = notifications?.reduce((sum, n) => sum + (n.click_count || 0), 0) || 0;
 
             const stats = {
                 subscribers: activeSubscribers,
-                notifications: totalSentCount, // Use actual sent count instead of status count
+                notifications: totalSentCount,
                 deliveryRate: totalSentCount ? 
                     ((totalDeliveredCount / totalSentCount) * 100).toFixed(1) : 0,
                 clickRate: totalClickCount
