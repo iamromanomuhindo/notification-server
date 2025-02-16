@@ -188,47 +188,59 @@ app.post('/send-notifications', async (req, res) => {
   }
 });
 
-// Click tracking endpoint
+// Track notification clicks
 app.post('/track-click', async (req, res) => {
   try {
-    const { campaignId } = req.body;
+    const { campaignId, url, userAgent } = req.body;
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
     if (!campaignId) {
       return res.status(400).json({ error: 'Campaign ID is required' });
     }
 
-    // Get current notification data
-    const { data: notification, error: fetchError } = await supabase
-      .from('notifications')
-      .select('click_count')
-      .eq('id', campaignId)
-      .single();
+    // Check rate limiting first
+    const { data: rateLimit, error: rateLimitError } = await supabase
+      .rpc('check_click_rate_limit', {
+        p_campaign_id: campaignId,
+        p_ip_address: ipAddress,
+        p_max_clicks: 10,
+        p_window_minutes: 5
+      });
 
-    if (fetchError) {
-      console.error('Error fetching notification:', fetchError);
-      return res.status(500).json({ error: fetchError.message });
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError);
+      return res.status(500).json({ error: 'Error checking rate limit' });
     }
 
-    // Update click count
-    const { error: updateError } = await supabase
+    if (!rateLimit) {
+      return res.status(429).json({ error: 'Rate limit exceeded' });
+    }
+
+    // Update notification click data
+    const clickData = {
+      timestamp: new Date().toISOString(),
+      url: url || null,
+      userAgent: userAgent || null,
+      ipAddress: ipAddress,
+      referrer: req.headers.referer || null
+    };
+
+    const { data, error } = await supabase
       .from('notifications')
-      .update({ 
-        click_count: (notification?.click_count || 0) + 1
+      .update({
+        clicked_urls: supabase.sql`array_append(COALESCE(clicked_urls, ARRAY[]::jsonb[]), ${clickData}::jsonb)`
       })
       .eq('id', campaignId);
 
-    if (updateError) {
-      console.error('Error updating click count:', updateError);
-      return res.status(500).json({ error: updateError.message });
+    if (error) {
+      console.error('Error updating click data:', error);
+      return res.status(500).json({ error: 'Error updating click data' });
     }
 
-    return res.status(200).json({ 
-      message: 'Click tracked successfully'
-    });
-
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error in track-click:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Error tracking click:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
