@@ -17,33 +17,8 @@ const DEFAULT_URL = 'https://datingsites30plus.online';
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
     console.log('Received background message:', payload);
-
-    // For data-only messages or when notification payload is missing required fields
-    const shouldShowNotification = !payload.notification || 
-                                 !payload.notification.title ||
-                                 !payload.notification.body;
-
-    if (shouldShowNotification) {
-        const notificationTitle = payload.data?.title || payload.notification?.title || 'New Message';
-        const notificationOptions = {
-            body: payload.data?.body || payload.notification?.body || '',
-            icon: payload.data?.icon || '/assets/img/logo.png',
-            image: payload.data?.image,
-            badge: '/assets/img/badge.png',
-            data: { 
-                url: payload.data?.click_url || DEFAULT_URL
-            },
-            requireInteraction: true,
-            vibrate: [200, 100, 200],
-            actions: [{
-                action: 'open_url',
-                title: 'Open'
-            }]
-        };
-
-        self.registration.showNotification(notificationTitle, notificationOptions);
-    }
-    // If payload.notification exists with required fields, FCM will handle it automatically
+    // Removed manual notification display.
+    // With a complete notification payload, FCM will automatically display the rich media notification.
 });
 
 // Handle notification clicks
@@ -80,12 +55,10 @@ self.addEventListener('notificationclick', event => {
             // Check if there is already a window/tab open with the target URL
             for (let i = 0; i < windowClients.length; i++) {
                 const client = windowClients[i];
-                // If so, just focus it.
                 if (client.url === clickUrl && 'focus' in client) {
                     return client.focus();
                 }
             }
-            // If not, open a new window.
             return clients.openWindow(clickUrl);
         })
         .catch(err => {
@@ -98,19 +71,15 @@ self.addEventListener('notificationclick', event => {
 // Handle push subscription change
 self.addEventListener('pushsubscriptionchange', async (event) => {
     console.log('Push subscription change event:', event);
-    const oldSubscription = event.oldSubscription;
-    
     try {
-        // Get new subscription
         const newSubscription = await self.registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: event.oldSubscription?.options?.applicationServerKey
         });
-        
         console.log('New subscription obtained:', newSubscription);
-        
     } catch (error) {
         console.error('Failed to resubscribe:', error);
     }
 });
+
 
