@@ -55,16 +55,10 @@ class PushManager {
             // Handle foreground messages
             this.messaging.onMessage((payload) => {
                 console.log('Received foreground message:', payload);
-                
-                // Only show notification for data-only messages or if notification payload is incomplete
-                const shouldShowNotification = !payload.notification || 
-                                            !payload.notification.title ||
-                                            !payload.notification.body;
-                
-                if (shouldShowNotification) {
-                    this.showNotification(payload);
-                }
-                // Let FCM handle complete notification payloads automatically
+                // Since we are now sending a complete notification payload,
+                // FCM will automatically display the notification in background.
+                // In the foreground, FCM does not auto-display notifications.
+                // If desired, add custom logic here to show notifications.
             });
 
         } catch (error) {
@@ -111,47 +105,10 @@ class PushManager {
             console.error('Error saving token to database:', error);
         }
     }
-
-    async showNotification(payload) {
-        if (!('Notification' in window)) {
-            console.log('This browser does not support notifications');
-            return;
-        }
-
-        // Use data payload if available, fallback to notification payload
-        const notificationTitle = payload.data?.title || payload.notification?.title || 'New Message';
-        const notificationOptions = {
-            body: payload.data?.body || payload.notification?.body || '',
-            icon: payload.data?.icon || payload.notification?.icon || '/assets/img/logo.png',
-            image: payload.data?.image || payload.notification?.image,
-            badge: '/assets/img/badge.png',
-            data: {
-                url: payload.data?.click_url || payload.notification?.click_action || '/'
-            },
-            requireInteraction: true,
-            vibrate: [200, 100, 200],
-            actions: [
-                {
-                    action: 'open_url',
-                    title: payload.data?.cta_text || payload.notification?.cta_text || 'Open'
-                }
-            ]
-        };
-
-        try {
-            if ('serviceWorker' in navigator) {
-                const registration = await navigator.serviceWorker.ready;
-                await registration.showNotification(notificationTitle, notificationOptions);
-            } else {
-                new Notification(notificationTitle, notificationOptions);
-            }
-        } catch (error) {
-            console.error('Error showing notification:', error);
-        }
-    }
 }
 
 // Initialize PushManager when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     new PushManager();
 });
+
