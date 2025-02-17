@@ -6,11 +6,29 @@ require('dotenv').config();
 
 const app = express();
 
-// Enable CORS for your frontend domain
+// Enable CORS for your frontend domains with custom logic and credentials enabled
 app.use(cors({
-  origin: '*', // Allow all origins during testing
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            'http://localhost:5500',
+            'http://127.0.0.1:5500',
+            'https://manomedia.onrender.com',
+            'https://manomedia.shop',
+            'http://manomedia.shop'
+        ];
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) {
+            callback(null, true);
+        } else if (allowedOrigins.indexOf(origin) !== -1) {
+            // Reflect the origin (important when credentials are involved)
+            callback(null, origin);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true, // Allow credentials
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
@@ -42,7 +60,7 @@ admin.initializeApp({
 // Notification endpoint
 app.post('/send', async (req, res) => {
   try {
-    const { campaignId, title, message, icon, image, url } = req.body;
+    const { campaignId } = req.body;
 
     if (!campaignId) {
       return res.status(400).json({ error: 'Campaign ID is required' });
@@ -80,29 +98,31 @@ app.post('/send', async (req, res) => {
       return res.status(500).json({ error: subscribersError.message });
     }
 
+    // Prepare a rich media notification payload with a complete notification object.
+    const messagePayload = {
+      notification: {
+        title: campaign.title,
+        body: campaign.message,
+        icon: campaign.icon_url || '/assets/img/logo.png',
+        image: campaign.image_url || undefined
+      },
+      data: {
+        click_url: campaign.click_url || '',
+        campaignId: campaignId.toString(),
+        cta_text: campaign.cta_text || 'Open'
+      }
+    };
+
     // Send notifications to each subscriber
     let sent = 0;
     let failed = 0;
 
     if (subscribers && subscribers.length > 0) {
-      // Send data-only message to let the service worker handle the notification
-      const message = {
-        data: {
-          title: campaign.title,
-          body: campaign.message,
-          icon: campaign.icon_url || '',
-          image: campaign.image_url || '',
-          click_url: campaign.click_url || '',
-          campaignId: campaignId.toString(),
-          cta_text: campaign.cta_text || 'Open'
-        }
-      };
-
       for (const subscriber of subscribers) {
         if (subscriber.id) {
           try {
             await admin.messaging().send({
-              ...message,
+              ...messagePayload,
               token: subscriber.id,
             });
             sent++;
@@ -151,7 +171,7 @@ app.post('/track-click', async (req, res) => {
       return res.status(400).json({ error: 'Campaign ID is required' });
     }
 
-    // Get current notification
+    // Get current notification click count
     const { data: notification, error: notificationError } = await supabase
       .from('notifications')
       .select('click_count')
@@ -187,3 +207,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
