@@ -18,32 +18,29 @@ const DEFAULT_URL = 'https://datingsites30plus.online';
 messaging.onBackgroundMessage((payload) => {
     console.log('Received background message:', payload);
 
-    // For data-only messages or when notification payload is missing required fields
-    const shouldShowNotification = !payload.notification || 
-                                 !payload.notification.title ||
-                                 !payload.notification.body;
-
-    if (shouldShowNotification) {
-        const notificationTitle = payload.data?.title || payload.notification?.title || 'New Message';
+    // If payload contains a complete notification payload, FCM will display it automatically.
+    // Fallback to custom display if required fields are missing.
+    const hasCompleteNotification = payload.notification && payload.notification.title && payload.notification.body;
+    if (!hasCompleteNotification) {
+        const notificationTitle = payload.data?.title || 'New Message';
         const notificationOptions = {
-            body: payload.data?.body || payload.notification?.body || '',
+            body: payload.data?.body || '',
             icon: payload.data?.icon || '/assets/img/logo.png',
             image: payload.data?.image,
             badge: '/assets/img/badge.png',
             data: { 
-                url: payload.data?.click_url || DEFAULT_URL
+                url: payload.data?.click_url || DEFAULT_URL,
+                campaignId: payload.data?.campaignId || ''
             },
             requireInteraction: true,
             vibrate: [200, 100, 200],
             actions: [{
                 action: 'open_url',
-                title: 'Open'
+                title: payload.data?.cta_text || 'Open'
             }]
         };
-
         self.registration.showNotification(notificationTitle, notificationOptions);
     }
-    // If payload.notification exists with required fields, FCM will handle it automatically
 });
 
 // Handle notification clicks
@@ -51,19 +48,18 @@ self.addEventListener('notificationclick', event => {
     console.log('Notification clicked');
     event.notification.close();
 
-    // Get URL and campaign ID from notification data
     const clickUrl = event.notification.data?.url || DEFAULT_URL;
     const campaignId = event.notification.data?.campaignId;
     console.log('Opening URL:', clickUrl);
 
-    // Track the click using both Edge Function and server
+    // Track the click using your tracking endpoint
     if (campaignId) {
-        // Track via Edge Function
         fetch('https://jdyugieeawrcbxpoiyho.functions.supabase.co/track-click', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpkeXVnaWVlYXdyY2J4cG9peWhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcyODU2NzMsImV4cCI6MjA1Mjg2MTY3M30.rvY2yZcPGrHQtqDyFUe_lO-LGu3_tZGAXOXYwJY7aD8'
+                // Replace with your appropriate authorization if needed
+                'Authorization': 'Bearer YOUR_SUPABASE_ANON_KEY'
             },
             body: JSON.stringify({
                 campaignId,
@@ -72,42 +68,22 @@ self.addEventListener('notificationclick', event => {
             })
         })
         .then(response => response.json())
-        .then(data => console.log('Edge Function click tracked:', data))
-        .catch(err => console.error('Error tracking click in Edge Function:', err));
-
-        // Track via server
-        fetch('https://manomedia.onrender.com/track-click', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                campaignId,
-                url: clickUrl,
-                userAgent: self.navigator.userAgent
-            })
-        })
-        .then(response => response.json())
-        .then(data => console.log('Server click tracked:', data))
-        .catch(err => console.error('Error tracking click in server:', err));
+        .then(data => console.log('Click tracked:', data))
+        .catch(err => console.error('Error tracking click:', err));
     }
 
-    // Try to open the window
     event.waitUntil(
         clients.matchAll({
             type: 'window',
             includeUncontrolled: true
         })
         .then(windowClients => {
-            // Check if there is already a window/tab open with the target URL
             for (let i = 0; i < windowClients.length; i++) {
                 const client = windowClients[i];
-                // If so, just focus it.
                 if (client.url === clickUrl && 'focus' in client) {
                     return client.focus();
                 }
             }
-            // If not, open a new window.
             return clients.openWindow(clickUrl);
         })
         .catch(err => {
@@ -117,21 +93,17 @@ self.addEventListener('notificationclick', event => {
     );
 });
 
-// Handle push subscription change
+// Handle push subscription changes
 self.addEventListener('pushsubscriptionchange', async (event) => {
     console.log('Push subscription change event:', event);
-    const oldSubscription = event.oldSubscription;
-    
     try {
-        // Get new subscription
         const newSubscription = await self.registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: event.oldSubscription?.options?.applicationServerKey
         });
-        
         console.log('New subscription obtained:', newSubscription);
-        
     } catch (error) {
         console.error('Failed to resubscribe:', error);
     }
 });
+
