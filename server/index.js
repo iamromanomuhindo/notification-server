@@ -6,29 +6,31 @@ require('dotenv').config();
 
 const app = express();
 
-// Enable CORS for your frontend domains with custom logic and credentials enabled
+// Allowed origins for your frontend
+const allowedOrigins = [
+  'http://localhost:5500',
+  'http://127.0.0.1:5500',
+  'https://manomedia.onrender.com',
+  'https://manomedia.shop',
+  'http://manomedia.shop'
+];
+
+// Enable CORS for your frontend domain
+// (Note: When using credentials, '*' cannot be used.)
 app.use(cors({
-    origin: function(origin, callback) {
-        const allowedOrigins = [
-            'http://localhost:5500',
-            'http://127.0.0.1:5500',
-            'https://manomedia.onrender.com',
-            'https://manomedia.shop',
-            'http://manomedia.shop'
-        ];
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) {
-            callback(null, true);
-        } else if (allowedOrigins.indexOf(origin) !== -1) {
-            // Reflect the origin (important when credentials are involved)
-            callback(null, origin);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true, // Allow credentials
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      // Reflect the origin in the response
+      return callback(null, origin);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // This sets Access-Control-Allow-Credentials to true
 }));
 
 app.use(express.json());
@@ -207,4 +209,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
