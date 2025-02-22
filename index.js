@@ -73,6 +73,44 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
+/**
+ * Helper function to send notifications in batches using sendEachForMulticast.
+ * @param {string[]} tokens - Array of device tokens.
+ * @param {Object} message - Base notification message (without token(s)).
+ * @param {number} batchSize - Maximum tokens per batch.
+ * @param {number} delay - Delay in milliseconds between batches.
+ * @returns {Promise<Object>} - Object containing sentCount and failedCount.
+ */
+async function sendInBatches(tokens, message, batchSize = 500, delay = 5000) {
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (let i = 0; i < tokens.length; i += batchSize) {
+    const batchTokens = tokens.slice(i, i + batchSize);
+    const messageBatch = {
+      ...message,
+      tokens: batchTokens
+    };
+
+    try {
+      const response = await admin.messaging().sendEachForMulticast(messageBatch);
+      sentCount += response.successCount;
+      failedCount += response.failureCount;
+      console.log(`Batch ${Math.floor(i / batchSize) + 1}: Sent ${response.successCount}, Failed ${response.failureCount}`);
+    } catch (error) {
+      console.error('Error sending batch:', error);
+      failedCount += batchTokens.length;
+    }
+
+    // Wait for the specified delay if there are more batches to process.
+    if (i + batchSize < tokens.length) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  return { sentCount, failedCount };
+}
+
 // Notification endpoint
 app.post('/send-notifications', async (req, res) => {
   try {
@@ -114,7 +152,7 @@ app.post('/send-notifications', async (req, res) => {
       return res.status(500).json({ error: subscribersError.message });
     }
 
-    // Send notifications to each subscriber
+    // Send notifications using batch processing with sendEachForMulticast
     let sent = 0;
     let failed = 0;
 
@@ -146,20 +184,11 @@ app.post('/send-notifications', async (req, res) => {
         },
       };
 
-      for (const subscriber of subscribers) {
-        if (subscriber.id) {
-          try {
-            await admin.messaging().send({
-              ...message,
-              token: subscriber.id,
-            });
-            sent++;
-          } catch (error) {
-            console.error('Error sending notification:', error);
-            failed++;
-          }
-        }
-      }
+      // Extract device tokens from subscribers
+      const tokens = subscribers.filter(subscriber => subscriber.id).map(subscriber => subscriber.id);
+      const result = await sendInBatches(tokens, message, 500, 5000);
+      sent = result.sentCount;
+      failed = result.failedCount;
     }
 
     // Update campaign status and counts
@@ -228,7 +257,7 @@ app.post('/track-click', async (req, res) => {
     const { data, error } = await supabase
       .from('notifications')
       .update({
-        clicked_urls: supabase.sql`array_append(COALESCE(clicked_urls, ARRAY[]::jsonb[]), ${clickData}::jsonb)`
+        clicked_urls: supabase.sqlarray_append(COALESCE(clicked_urls, ARRAY[]::jsonb[]), ${clickData}::jsonb)
       })
       .eq('id', campaignId);
 
@@ -248,6 +277,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
