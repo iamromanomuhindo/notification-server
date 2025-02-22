@@ -6,46 +6,45 @@ require('dotenv').config();
 
 const app = express();
 
-// Custom request logging middleware
+// CORS configuration
 app.use((req, res, next) => {
-  console.log('Incoming request:', {
-    method: req.method,
-    url: req.url,
-    origin: req.headers.origin,
-    headers: req.headers
-  });
-  next();
+    console.log('Incoming request:', {
+        method: req.method,
+        url: req.url,
+        origin: req.headers.origin,
+        headers: req.headers
+    });
+    next();
 });
 
-// CORS configuration
 app.use(cors({
-  origin: function(origin, callback) {
-    const allowedOrigins = [
-      'http://localhost:5500',
-      'http://127.0.0.1:5500',
-      'https://manomedia.onrender.com',
-      'https://manomedia.shop',
-      'http://manomedia.shop'
-    ];
-
-    console.log('Request origin:', origin);
-
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) === -1) {
-      console.log('Origin not allowed:', origin);
-      return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
-    }
-
-    console.log('Origin allowed:', origin);
-    return callback(null, true);
-  },
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Origin'],
-  credentials: true,
-  preflightContinue: false,
-  optionsSuccessStatus: 204
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            'http://localhost:5500',
+            'http://127.0.0.1:5500',
+            'https://manomedia.onrender.com',
+            'https://manomedia.shop',
+            'http://manomedia.shop'
+        ];
+        
+        console.log('Request origin:', origin);
+        
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) === -1) {
+            console.log('Origin not allowed:', origin);
+            return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
+        }
+        
+        console.log('Origin allowed:', origin);
+        return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin'],
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
 }));
 
 app.use(express.json());
@@ -74,44 +73,6 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-/**
- * Helper function to send notifications in batches.
- * @param {string[]} tokens - Array of device tokens.
- * @param {Object} message - The notification message payload (without the token field).
- * @param {number} batchSize - Number of tokens to send per batch.
- * @param {number} delay - Delay in milliseconds between each batch.
- * @returns {Promise<Object>} - Returns an object with sentCount and failedCount.
- */
-async function sendInBatches(tokens, message, batchSize, delay) {
-  let sentCount = 0;
-  let failedCount = 0;
-
-  for (let i = 0; i < tokens.length; i += batchSize) {
-    const batch = tokens.slice(i, i + batchSize);
-    const messageBatch = {
-      ...message,
-      tokens: batch
-    };
-
-    try {
-      const response = await admin.messaging().sendMulticast(messageBatch);
-      sentCount += response.successCount;
-      failedCount += response.failureCount;
-      console.log(`Batch ${Math.floor(i / batchSize) + 1}: Sent ${response.successCount}, Failed ${response.failureCount}`);
-    } catch (error) {
-      console.error('Error sending batch:', error);
-      failedCount += batch.length;
-    }
-
-    // If there are more tokens to send, wait for the specified delay before sending the next batch
-    if (i + batchSize < tokens.length) {
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-
-  return { sentCount, failedCount };
-}
-
 // Notification endpoint
 app.post('/send-notifications', async (req, res) => {
   try {
@@ -135,16 +96,16 @@ app.post('/send-notifications', async (req, res) => {
     }
 
     // Get subscribers based on target criteria
-    let subscribersQuery = supabase
+    const subscribersQuery = supabase
       .from('subscribers')
       .select('id, device_type, country');
 
     if (campaign.target_device !== 'all') {
-      subscribersQuery = subscribersQuery.eq('device_type', campaign.target_device);
+      subscribersQuery.eq('device_type', campaign.target_device);
     }
 
     if (campaign.target_countries && campaign.target_countries.length > 0 && !campaign.target_countries.includes('ALL')) {
-      subscribersQuery = subscribersQuery.in('country', campaign.target_countries);
+      subscribersQuery.in('country', campaign.target_countries);
     }
 
     const { data: subscribers, error: subscribersError } = await subscribersQuery;
@@ -153,15 +114,12 @@ app.post('/send-notifications', async (req, res) => {
       return res.status(500).json({ error: subscribersError.message });
     }
 
+    // Send notifications to each subscriber
     let sent = 0;
     let failed = 0;
 
     if (subscribers && subscribers.length > 0) {
-      // Collect tokens from subscribers
-      const tokens = subscribers.filter(sub => sub.id).map(sub => sub.id);
-
-      // Build the base message payload
-      const messagePayload = {
+      const message = {
         notification: {
           title: campaign.title,
           body: campaign.message,
@@ -188,10 +146,20 @@ app.post('/send-notifications', async (req, res) => {
         },
       };
 
-      // Send notifications in batches of 500 tokens every 5 seconds
-      const result = await sendInBatches(tokens, messagePayload, 500, 5000);
-      sent = result.sentCount;
-      failed = result.failedCount;
+      for (const subscriber of subscribers) {
+        if (subscriber.id) {
+          try {
+            await admin.messaging().send({
+              ...message,
+              token: subscriber.id,
+            });
+            sent++;
+          } catch (error) {
+            console.error('Error sending notification:', error);
+            failed++;
+          }
+        }
+      }
     }
 
     // Update campaign status and counts
@@ -280,5 +248,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
